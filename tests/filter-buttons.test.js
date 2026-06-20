@@ -21,7 +21,9 @@ function assert(condition, msg) {
 
 function assertEqual(actual, expected, msg) {
 	const ok = actual === expected;
-	console.log(`  ${ok ? "✅" : "❌"} ${msg}: expected="${expected}" actual="${actual}"`);
+	console.log(
+		`  ${ok ? "✅" : "❌"} ${msg}: expected="${expected}" actual="${actual}"`,
+	);
 	if (ok) passed++;
 	else failed++;
 }
@@ -49,8 +51,10 @@ assert(agents.length <= 10, "no more than 10 agent keys");
 
 // Verify sort: BLOCKED first, then DONE, then WORKING
 const statusOrder = agents.map((a) => a.status);
-const blockedFirst = statusOrder.indexOf("blocked") < statusOrder.indexOf("done");
-const doneBeforeWorking = statusOrder.indexOf("done") < statusOrder.indexOf("working");
+const blockedFirst =
+	statusOrder.indexOf("blocked") < statusOrder.indexOf("done");
+const doneBeforeWorking =
+	statusOrder.indexOf("done") < statusOrder.indexOf("working");
 assert(blockedFirst, "BLOCKED agents before DONE");
 assert(doneBeforeWorking, "DONE agents before WORKING");
 
@@ -88,7 +92,8 @@ for (let i = 0; i < machines.length + 1; i++) {
 	const current = agents.length > 0 ? agents[0].connAbbr : "empty";
 	order.push(current);
 }
-const allUnique = new Set(order.slice(0, machines.length)).size === machines.length;
+const allUnique =
+	new Set(order.slice(0, machines.length)).size === machines.length;
 assert(allUnique, "cycle through all machines");
 console.log(`  Order: ${order.join(" → ")}`);
 
@@ -107,7 +112,10 @@ assertEqual(bm.mode, "space", "mode should be 'space'");
 
 // Agents should be from the machine AND the specific space
 const machineSpaces = sm.getSpaces(machines[0].connName);
-const firstSpaceAgents = sm.getFilteredAgents(machines[0].connName, machineSpaces[0]?.wsId);
+const firstSpaceAgents = sm.getFilteredAgents(
+	machines[0].connName,
+	machineSpaces[0]?.wsId,
+);
 if (firstSpaceAgents.length > 0) {
 	const spaceMatch = agents.every((a) => a.connName === machines[0].connName);
 	assert(spaceMatch, "agents filtered to first machine");
@@ -152,8 +160,13 @@ const lastWs = bm.wsId;
 bm.nextMachine(); // switch to next machine
 assertEqual(bm.mode, "machine", "back to machine mode");
 assertEqual(bm.wsId, null, "space filter cleared");
-assert(bm.wsId !== lastWs || bm.wsId === null, "space filter reset on machine switch");
+assert(
+	bm.wsId !== lastWs || bm.wsId === null,
+	"space filter reset on machine switch",
+);
 
 // ─── Summary ───────────────────────────────────────────────────────
-console.log(`\n=== Results: ${passed} passed, ${failed} failed ${failed > 0 ? "❌" : "✅"} ===`);
+console.log(
+	`\n=== Results: ${passed} passed, ${failed} failed ${failed > 0 ? "❌" : "✅"} ===`,
+);
 process.exit(failed > 0 ? 1 : 0);
