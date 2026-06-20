@@ -71,7 +71,7 @@ export class ButtonMapper {
 	}
 
 	// Render K1-K5 or K6-K10
-	renderAgentRow(wsChunk, startIdx, endIdx) {
+	renderAgentRow(wsChunk, startIdx, _endIdx) {
 		const keys = [];
 		const agents = wsChunk ? wsChunk.agents : [];
 
@@ -88,6 +88,8 @@ export class ButtonMapper {
 					paneId: agent.pane_id,
 					connName: wsChunk.connName,
 					connAbbr: wsChunk.connAbbr,
+					connAbbrColor: wsChunk.connAbbrColor || "#888888",
+					wsLabel: wsChunk.label || "",
 					customStatus: agent.custom_status,
 				});
 			} else {
@@ -98,7 +100,7 @@ export class ButtonMapper {
 	}
 
 	// K11 — Previous page
-	renderNavPrev(pageData, pageIdx) {
+	renderNavPrev(_pageData, pageIdx) {
 		// Get first WS label from previous page
 		let label = "";
 		const enabled = pageIdx > 0;
@@ -156,7 +158,7 @@ export class ButtonMapper {
 	}
 
 	// K13 — Next page
-	renderNavNext(pageData, pageIdx, totalPages) {
+	renderNavNext(_pageData, pageIdx, totalPages) {
 		let label = "";
 		const enabled = pageIdx < totalPages - 1;
 

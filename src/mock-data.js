@@ -12,6 +12,7 @@ export function buildMockUnifiedWorkspaces() {
 		{
 			connName: "local",
 			connAbbr: "LCL",
+			connAbbrColor: "#4ADE80",
 			workspace_id: "ws-1",
 			label: "main-proj",
 			agents: buildMockAgents(
@@ -24,6 +25,7 @@ export function buildMockUnifiedWorkspaces() {
 		{
 			connName: "local",
 			connAbbr: "LCL",
+			connAbbrColor: "#4ADE80",
 			workspace_id: "ws-2",
 			label: "web-app",
 			agents: buildMockAgents(
@@ -37,6 +39,7 @@ export function buildMockUnifiedWorkspaces() {
 		{
 			connName: "dev-server",
 			connAbbr: "DEV",
+			connAbbrColor: "#60A5FA",
 			workspace_id: "ws-3",
 			label: "backend",
 			agents: buildMockAgents(
@@ -49,6 +52,7 @@ export function buildMockUnifiedWorkspaces() {
 		{
 			connName: "dev-server",
 			connAbbr: "DEV",
+			connAbbrColor: "#60A5FA",
 			workspace_id: "ws-4",
 			label: "infra",
 			agents: buildMockAgents(1, ["cline"], ["working"], ["tf-plan"]),
@@ -78,12 +82,13 @@ function buildMockAgents(count, types, statuses, names) {
 	return agents;
 }
 
-// All agents for stats count
+// All agents for stats count (stats function only, not used in main flow)
 export function buildMockUnifiedWorkspacesForStats() {
 	return [
 		{
 			connName: "local",
 			connAbbr: "LCL",
+			connAbbrColor: "#4ADE80",
 			workspace_id: "ws-1",
 			label: "main-proj",
 			agents: [
@@ -95,6 +100,7 @@ export function buildMockUnifiedWorkspacesForStats() {
 		{
 			connName: "local",
 			connAbbr: "LCL",
+			connAbbrColor: "#4ADE80",
 			workspace_id: "ws-2",
 			label: "web-app",
 			agents: [
@@ -105,6 +111,7 @@ export function buildMockUnifiedWorkspacesForStats() {
 		{
 			connName: "dev-server",
 			connAbbr: "DEV",
+			connAbbrColor: "#60A5FA",
 			workspace_id: "ws-3",
 			label: "backend",
 			agents: [
