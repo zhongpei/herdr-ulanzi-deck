@@ -34,14 +34,14 @@ export class DeckClient {
 			this.ws = new WebSocket(`ws://${this.address}:${this.port}`);
 
 			this.ws.on("open", () => {
-				// Connect as action UUID (5-seg) — keydown events route here
+				// Connect as plugin UUID (4-seg main service) for keydown events
 				this.WS_SEND({
 					code: 0,
 					cmd: "connected",
-					uuid: ACTION_UUID,
+					uuid: PLUGIN_UUID,
 				});
 				this.connected = true;
-				console.log(`[deck] connected with action UUID: ${ACTION_UUID}`);
+				console.log(`[deck] connected as main service: ${PLUGIN_UUID}`);
 				resolve();
 			});
 

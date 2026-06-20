@@ -106,7 +106,8 @@ export class IconRenderer {
 	// ─── Machine cycle button (K12) ────────────────────────────
 	// Background = machine color when active, dark gray when inactive
 	renderNavMachine(data) {
-		const bgColor = data.active && data.currentColor ? data.currentColor : "#3a3a3a";
+		const bgColor =
+			data.active && data.currentColor ? data.currentColor : "#3a3a3a";
 		const nextColor = data.active ? "rgba(255,255,255,0.6)" : "#666";
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="${bgColor}" opacity="0.85"/>

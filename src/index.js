@@ -202,18 +202,31 @@ async function renderAll(mapper, renderer, deck) {
 // ─── Key press handler ───────────────────────────────────────────
 function handleKeyDown(msg, mapper, iconRenderer) {
 	const physKey = msg.key;
-	console.log("[input] keydown:", JSON.stringify({ key: msg.key }));
+	console.log("[input] keydown: key=" + physKey + " full=" + JSON.stringify(msg));
 
 	switch (physKey) {
 		case "0_2": // K11 — ALL
+			console.log("[nav] ALL pressed");
+			mapper.setAll();
+			renderAll(mapper, iconRenderer, deckClient);
+			break;
+		case "0_3": // hardware prev page → ALL
+			console.log("[nav] hw prev → ALL");
 			mapper.setAll();
 			renderAll(mapper, iconRenderer, deckClient);
 			break;
 		case "1_2": // K12 — next machine
+			console.log("[nav] machine cycle pressed");
+			mapper.nextMachine();
+			renderAll(mapper, iconRenderer, deckClient);
+			break;
+		case "1_3": // hardware next page → next machine
+			console.log("[nav] hw next → machine cycle");
 			mapper.nextMachine();
 			renderAll(mapper, iconRenderer, deckClient);
 			break;
 		case "2_2": // K13 — next space
+			console.log("[nav] space cycle pressed");
 			mapper.nextSpace();
 			renderAll(mapper, iconRenderer, deckClient);
 			break;
