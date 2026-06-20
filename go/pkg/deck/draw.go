@@ -326,13 +326,23 @@ func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
 	return face, nil
 }
 
-// loadFontWithColor creates a new font face with the specified fill color, uncached.
+var fontColorCache = make(map[string]*canvas.FontFace)
+
+// loadFontWithColor creates a new font face with the specified fill color.
+// Cached by size + style + RGBA to avoid repeated LoadSystemFont calls.
 func loadFontWithColor(size float64, style canvas.FontStyle, fill color.Color) *canvas.FontFace {
+	rgba := color.RGBAModel.Convert(fill).(color.RGBA)
+	key := fmt.Sprintf("%.1f-%d-%02x%02x%02x%02x", size, style, rgba.R, rgba.G, rgba.B, rgba.A)
+	if f, ok := fontColorCache[key]; ok {
+		return f
+	}
 	family := canvas.NewFontFamily("sans-serif")
 	for _, name := range fontNames() {
 		_ = family.LoadSystemFont(name, style)
 	}
-	return family.Face(size, fill, style)
+	face := family.Face(size, fill, style)
+	fontColorCache[key] = face
+	return face
 }
 
 // fontNames returns the system font names to load, in glyph-fallback order.

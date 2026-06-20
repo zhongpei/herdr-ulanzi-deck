@@ -94,6 +94,7 @@ var (
 	lastHash string
 	tunnels  []*herdr.Tunnel
 	bridge   *herdr.Bridge
+	kht      *appstate.KeyHashTracker
 )
 
 // ─── Callbacks (called from ReadPump goroutine) ─────────────
@@ -164,6 +165,7 @@ func runMain(cmd *cobra.Command, args []string) error {
 	bm = mapper.New(sm)
 	st = appstate.New(sm, bm)
 	sysColl = sysstats.New()
+	kht = appstate.NewKeyHashTracker()
 
 	// ── Load herdr data ─────────────────────────────────────
 	cfg, err := herdr.LoadConfig()
@@ -363,6 +365,8 @@ func messagePump() {
 				log.Debug().Int("keys", len(ka)).Msg("re-seeded key actions")
 			}
 		}
+		// Reset per-key hash tracker so all keys re-render after reconnect
+		kht.Reset()
 		// Force re-render with current data
 		st.ForceDirty()
 		log.Debug().Msg("store forced dirty for re-render")
@@ -373,7 +377,7 @@ func messagePump() {
 func renderAll() {
 	kd := bm.RenderAll()
 	log.Debug().Int("keys", len(kd)).Msg("rendering all keys")
-	for _, k := range kd {
+	for i, k := range kd {
 		var svg string
 		var kt string
 		switch {
@@ -407,6 +411,12 @@ func renderAll() {
 		default:
 			svg = ir.RenderEmptyKey()
 			kt = "empty"
+		}
+		// Per-key hash check: skip SVG→PNG→send for keys whose visual
+		// content hasn't changed since last render cycle.
+		if !kht.CheckAndUpdate(i, svg) {
+			log.Debug().Int("idx", i).Str("key", physKeyFromID(keyCommandID(k))).Str("type", kt).Msg("key unchanged, skip")
+			continue
 		}
 		pk := physKeyFromID(keyCommandID(k))
 		if dc != nil && dc.IsConnected() {
