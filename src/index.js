@@ -6,8 +6,9 @@ import { IconRenderer } from "./icon-renderer.js";
 import { DeckClient } from "./deck-client.js";
 import { ProfileManager } from "./profile-manager.js";
 import { HerdrBridge } from "./herdr-bridge.js";
+import { ConnectionManager } from "./connection-manager.js";
+import { loadConfig } from "./config.js";
 import { buildMockUnifiedWorkspaces } from "./mock-data.js";
-import fs from "fs";
 
 // Module-level state
 let stateManager;
@@ -65,43 +66,33 @@ async function main() {
 	const iconRenderer = new IconRenderer();
 	buttonMapper = new ButtonMapper(stateManager);
 
-	// Try connecting to herdr for real data; fall back to mock
+	// Load config and connect to herdr instances
 	const args = process.argv.slice(2);
 	const deckPort = parseInt(args[1], 10) || 3906;
 
-	let herdrSocket = null;
-	for (const p of [
-		process.env.HERDR_SOCKET_PATH,
-		"/Users/fofo/.config/herdr/herdr.sock",
-		process.env.HOME + "/.local/share/herdr/herdr.sock",
-	]) {
-		try {
-			if (p && fs.statSync(p).isSocket()) { herdrSocket = p; break; }
-		} catch {}
+	const config = loadConfig();
+	const bridge = new HerdrBridge();
+	herdrBridge = bridge;
+
+	// Start connection manager
+	const connMgr = new ConnectionManager();
+	await connMgr.startAll(config);
+
+	// Add each connection to the bridge
+	for (const conn of connMgr.connections) {
+		bridge.addConnection(conn.name, conn.abbr, conn.color, conn.client);
 	}
 
-	if (herdrSocket) {
-		try {
-			const bridge = new HerdrBridge(herdrSocket);
-			herdrBridge = bridge;
-			const unified = await bridge.fetchUnifiedWorkspaces();
-			stateManager.init(unified);
-			console.log(`[main] herdr: ${unified.length} ws, ${stateManager.getAllAgents().length} agents`);
-
-			// Subscribe to real-time events
-			bridge.subscribeToEvents((event) => {
-				if (event.type === "agent_status_changed" || event.type === "workspace_changed") {
-					refreshFromHerdr(bridge);
-				}
-			}).catch(() => {});
-		} catch (err) {
-			console.warn(`[main] herdr fail (${err.message}), using mock`);
-			herdrBridge = null;
-			stateManager.init(buildMockUnifiedWorkspaces());
-		}
+	let unified;
+	if (connMgr.connections.length > 0) {
+		unified = await bridge.fetchAll();
+		stateManager.init(unified);
+		const total = stateManager.getAllAgents().length;
+		console.log(`[main] herdr: ${unified.length} ws, ${total} agents`);
 	} else {
-		console.warn("[main] no herdr socket, using mock");
-		stateManager.init(buildMockUnifiedWorkspaces());
+		console.warn("[main] no herdr connections, using mock");
+		unified = buildMockUnifiedWorkspaces();
+		stateManager.init(unified);
 	}
 
 	// Create dedicated profile and extract key→actionid mapping
@@ -112,7 +103,9 @@ async function main() {
 			const profileDir = pm.ensure("02d04a045u3673881");
 			if (profileDir) {
 				profileKeyActions = pm.getKeyActionMap();
-				console.log(`[main] profile ready, ${Object.keys(profileKeyActions).length} keys`);
+				console.log(
+					`[main] profile ready, ${Object.keys(profileKeyActions).length} keys`,
+				);
 			}
 		} catch (err) {
 			console.error("[main] profile setup failed:", err.message);
@@ -233,7 +226,9 @@ async function renderAll(mapper, renderer, deck) {
 // ─── Key press handler ───────────────────────────────────────────
 function handleKeyDown(msg, mapper, iconRenderer) {
 	const physKey = msg.key;
-	console.log("[input] keydown: key=" + physKey + " full=" + JSON.stringify(msg));
+	console.log(
+		"[input] keydown: key=" + physKey + " full=" + JSON.stringify(msg),
+	);
 
 	switch (physKey) {
 		case "0_2": // K11 — ALL
@@ -268,23 +263,15 @@ function handleKeyDown(msg, mapper, iconRenderer) {
 				const keyData = mapper.renderAll();
 				const agentData = keyData[idx];
 				if (agentData && agentData.type === "agent") {
-					console.log(`[action] focus: ${agentData.connName}/${agentData.paneId}`);
+					console.log(
+						`[action] focus: ${agentData.connName}/${agentData.paneId}`,
+					);
 					if (herdrBridge) {
-						herdrBridge.client.request("agent.focus", { target: agentData.paneId }).catch(() => {});
+						herdrBridge.focusAgent(agentData.connName, agentData.paneId).catch(() => {});
 					}
 				}
 			}
 		}
-	}
-}
-
-// ─── Herdr refresh ──────────────────────────────────────────────
-async function refreshFromHerdr(bridge) {
-	try {
-		const unified = await bridge.fetchUnifiedWorkspaces();
-		stateManager.init(unified);
-	} catch (err) {
-		console.warn("[herdr] refresh failed:", err.message);
 	}
 }
 

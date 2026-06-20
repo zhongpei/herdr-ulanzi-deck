@@ -1,113 +1,82 @@
 // HerdrBridge: reads herdr data → UnifiedWorkspace format
-// Maps herdr workspaces + agents to our display format
+// Handles multiple machines (local + SSH tunnel)
 
 import { HerdrClient } from "./herdr-client.js";
 
-// Default machine config for local herdr
-const LOCAL_MACHINE = {
-	connName: "local",
-	connAbbr: "LCL",
-	connAbbrColor: "#4ADE80",
-};
-
 export class HerdrBridge {
-	constructor(socketPath, machineConfig) {
-		this.client = new HerdrClient(socketPath);
-		this.machine = machineConfig || LOCAL_MACHINE;
+	constructor() {
+		this.clients = []; // { name, abbr, color, client }
 	}
 
-	async fetchUnifiedWorkspaces() {
-		const [workspaces, agents] = await Promise.all([
-			this.client.listWorkspaces(),
-			this.client.listAgents(),
-		]);
-
-		// Build a map: workspace_id → list of agents
-		const agentMap = {};
-		for (const a of agents) {
-			const wid = a.workspace_id;
-			if (!agentMap[wid]) agentMap[wid] = [];
-			agentMap[wid].push({
-				pane_id: a.pane_id,
-				terminal_id: a.terminal_id,
-				workspace_id: a.workspace_id,
-				tab_id: a.tab_id,
-				agent: a.agent || "unknown",
-				name: a.name || a.agent || "",
-				agent_status: a.agent_status,
-				custom_status: a.custom_status || null,
-				state_labels: a.state_labels || {},
-				title: a.title || null,
-				display_agent: a.display_agent || null,
-				focused: !!a.focused,
-				revision: a.revision || 0,
-			});
-		}
-
-		// Build UnifiedWorkspace list
-		const unified = [];
-		for (const ws of workspaces) {
-			unified.push({
-				connName: this.machine.connName,
-				connAbbr: this.machine.connAbbr,
-				connAbbrColor: this.machine.connAbbrColor,
-				workspace_id: ws.workspace_id,
-				label: ws.label || `ws-${ws.number}`,
-				number: ws.number,
-				agent_status: ws.agent_status,
-				tab_count: ws.tab_count,
-				pane_count: ws.pane_count,
-				agents: agentMap[ws.workspace_id] || [],
-			});
-		}
-
-		return unified;
+	// Add a connection from ConnectionManager
+	addConnection(name, abbr, color, socketOrClient) {
+		const client =
+			typeof socketOrClient === "string"
+				? new HerdrClient(socketOrClient)
+				: socketOrClient;
+		this.clients.push({ name, abbr, color, client });
 	}
 
-	async subscribeToEvents(onEvent) {
+	// Fetch data from ALL connections and merge into UnifiedWorkspace[]
+	async fetchAll() {
+		const allWorkspaces = [];
+
+		for (const conn of this.clients) {
+			try {
+				const [workspaces, agents] = await Promise.all([
+					conn.client.listWorkspaces().catch(() => []),
+					conn.client.listAgents().catch(() => []),
+				]);
+				// Build agent map per workspace
+				const agentMap = {};
+				for (const a of agents) {
+					const wid = a.workspace_id;
+					if (!agentMap[wid]) agentMap[wid] = [];
+					agentMap[wid].push({
+						pane_id: a.pane_id,
+						terminal_id: a.terminal_id,
+						workspace_id: a.workspace_id,
+						tab_id: a.tab_id,
+						agent: a.agent || "unknown",
+						name: a.name || a.agent || "",
+						agent_status: a.agent_status,
+						custom_status: a.custom_status || null,
+						state_labels: a.state_labels || {},
+						title: a.title || null,
+						display_agent: a.display_agent || null,
+						focused: !!a.focused,
+						revision: a.revision || 0,
+					});
+				}
+				for (const ws of workspaces) {
+					allWorkspaces.push({
+						connName: conn.name,
+						connAbbr: conn.abbr,
+						connAbbrColor: conn.color,
+						workspace_id: ws.workspace_id,
+						label: ws.label || `ws-${ws.number}`,
+						number: ws.number,
+						agent_status: ws.agent_status,
+						tab_count: ws.tab_count,
+						pane_count: ws.pane_count,
+						agents: agentMap[ws.workspace_id] || [],
+					});
+				}
+			} catch (err) {
+				console.warn(`[bridge] fetch failed for ${conn.name}: ${err.message}`);
+			}
+		}
+		return allWorkspaces;
+	}
+
+	// Focus agent on a specific connection
+	async focusAgent(connName, paneId) {
+		const conn = this.clients.find((c) => c.name === connName);
+		if (!conn) return;
 		try {
-			await this.client.subscribe(
-				{
-					subscriptions: [
-						{ type: "pane.agent_status_changed" },
-						{ type: "pane.agent_detected" },
-						{ type: "workspace.created" },
-						{ type: "workspace.closed" },
-						{ type: "workspace.focused" },
-						{ type: "workspace.renamed" },
-					],
-				},
-				(msg) => {
-					// Map herdr event → our event format
-					const event = msg.event;
-					const data = msg.data;
-					if (event === "pane_agent_status_changed" && data) {
-						onEvent({
-							type: "agent_status_changed",
-							paneId: data.pane_id,
-							workspaceId: data.workspace_id,
-							status: data.agent_status,
-							agent: data.agent,
-							customStatus: data.custom_status,
-							stateLabels: data.state_labels,
-						});
-					}
-					if (
-						event === "workspace_created" ||
-						event === "workspace_closed" ||
-						event === "workspace_focused"
-					) {
-						onEvent({ type: "workspace_changed" });
-					}
-				},
-			);
+			await conn.client.request("agent.focus", { target: paneId });
 		} catch (err) {
-			console.warn("[bridge] subscribe failed:", err.message);
+			console.warn(`[bridge] focus failed: ${err.message}`);
 		}
 	}
-}
-
-// Agent status → our status (same names, just mapping for clarity)
-export function mapStatus(s) {
-	return s || "unknown";
 }

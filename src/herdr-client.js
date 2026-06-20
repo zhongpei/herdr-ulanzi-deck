@@ -6,8 +6,16 @@ import net from "net";
 let reqId = 0;
 
 export class HerdrClient {
-	constructor(socketPath) {
-		this.socketPath = socketPath;
+	// target: string path for Unix socket, or { host, port } for TCP
+	constructor(target) {
+		this.target = target;
+	}
+
+	_connect() {
+		if (typeof this.target === "string") {
+			return net.createConnection({ path: this.target });
+		}
+		return net.createConnection({ host: this.target.host, port: this.target.port });
 	}
 
 	async request(method, params = {}) {
@@ -15,7 +23,7 @@ export class HerdrClient {
 		const req = JSON.stringify({ id, method, params }) + "\n";
 
 		return new Promise((resolve, reject) => {
-			const sock = net.createConnection({ path: this.socketPath });
+			const sock = this._connect();
 			let buffer = "";
 			let responded = false;
 
@@ -95,7 +103,7 @@ export class HerdrClient {
 		const req =
 			JSON.stringify({ id, method: "events.subscribe", params }) + "\n";
 
-		const sock = net.createConnection({ path: this.socketPath });
+		const sock = this._connect();
 		let buffer = "";
 		let ackReceived = false;
 
