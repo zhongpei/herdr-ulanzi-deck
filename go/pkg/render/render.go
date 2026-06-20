@@ -82,9 +82,9 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
         font-family="sans-serif" font-size="24" font-weight="800">%[8]s</text>
   <text x="100" y="90" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="36" font-weight="700">%[9]s</text>
-  <text x="100" y="125" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="20" font-weight="800">%[10]s</text>
-  <text x="100" y="155" text-anchor="middle" fill="white"
+  <text x="185" y="88" text-anchor="end" fill="white"
+        font-family="sans-serif" font-size="22" font-weight="800">%[10]s</text>
+  <text x="100" y="140" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="26" font-weight="700">%[11]s</text>
 </svg>`,
 			statusColor,
@@ -114,11 +114,11 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
         font-family="sans-serif" font-size="24" font-weight="800">%[8]s</text>
   <text x="100" y="90" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="36" font-weight="700">%[9]s</text>
-  <text x="100" y="125" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="20" font-weight="800">%[10]s</text>
-  <text x="100" y="148" text-anchor="middle" fill="white"
+  <text x="185" y="88" text-anchor="end" fill="white"
+        font-family="sans-serif" font-size="22" font-weight="800">%[10]s</text>
+  <text x="100" y="135" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="22" font-weight="700">%[11]s</text>
-  <text x="100" y="172" text-anchor="middle" fill="white"
+  <text x="100" y="160" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="22" font-weight="700">%[12]s</text>
 </svg>`,
 			statusColor,
