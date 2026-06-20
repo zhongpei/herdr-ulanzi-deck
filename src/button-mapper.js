@@ -99,16 +99,15 @@ export class ButtonMapper {
 		return keys;
 	}
 
-	// K11 — Previous page
+	// K11 — Previous page (format: "← LCL")
 	renderNavPrev(_pageData, pageIdx) {
-		// Get first WS label from previous page
 		let label = "";
 		const enabled = pageIdx > 0;
 
 		if (enabled) {
 			const prevPage = this.state.getPage(pageIdx - 1);
 			if (prevPage && prevPage.row1) {
-				label = `${prevPage.row1.connAbbr}:${prevPage.row1.label}`;
+				label = `← ${prevPage.row1.connAbbr}`;
 			}
 		}
 
@@ -165,7 +164,7 @@ export class ButtonMapper {
 		if (enabled) {
 			const nextPage = this.state.getPage(pageIdx + 1);
 			if (nextPage && nextPage.row1) {
-				label = `${nextPage.row1.connAbbr}:${nextPage.row1.label}`;
+				label = `${nextPage.row1.connAbbr} →`;
 			}
 		}
 

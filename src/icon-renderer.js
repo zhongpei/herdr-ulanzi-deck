@@ -93,19 +93,16 @@ export class IconRenderer {
 	}
 
 	// ─── Navigation keys (K11, K13) ──────────────────────────────
-	renderNavKey(type, label, enabled) {
-		const arrow = type === "navPrev" ? "◀" : "▶";
+	// Scheme C: "← LCL" / "DEV →" with large bold text
+	renderNavKey(_type, label, enabled) {
 		const opacity = enabled ? "1" : "0.3";
-		const escaped = this.escapeXml(label || "");
-		const truncated =
-			escaped.length > 12 ? escaped.slice(0, 11) + "…" : escaped;
+		const text = this.escapeXml(label || "");
 
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="#3a3a3a"/>
-  <text x="100" y="70" text-anchor="middle" fill="white"
-        font-size="32" opacity="${opacity}">${arrow}</text>
-  <text x="100" y="135" text-anchor="middle" fill="#aaa"
-        font-family="sans-serif" font-size="18" opacity="${opacity}">${truncated}</text>
+  <text x="100" y="110" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="32" font-weight="800"
+        opacity="${opacity}">${text}</text>
 </svg>`;
 
 		return this.toDataUri(svg);
@@ -121,16 +118,16 @@ export class IconRenderer {
 
 			svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="#2a2a2a"/>
-  <text x="100" y="90" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="22" font-weight="600">${label}</text>
+  <text x="100" y="85" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="26" font-weight="700">${label}</text>
   ${
 		sub
-			? `<text x="100" y="130" text-anchor="middle" fill="#888"
-        font-family="sans-serif" font-size="16">${sub}</text>`
+			? `<text x="100" y="125" text-anchor="middle" fill="#aaa"
+        font-family="sans-serif" font-size="20" font-weight="600">${sub}</text>`
 			: ""
 	}
-  <text x="100" y="170" text-anchor="middle" fill="#666"
-        font-family="sans-serif" font-size="14">${page}</text>
+  <text x="100" y="175" text-anchor="middle" fill="#888"
+        font-family="sans-serif" font-size="18" font-weight="700">${page}</text>
 </svg>`;
 		} else {
 			const r1 = data.rows?.[0];
@@ -145,12 +142,12 @@ export class IconRenderer {
 
 			svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="#2a2a2a"/>
-  <text x="100" y="60" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="19">${r1label}</text>
+  <text x="100" y="55" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="22" font-weight="700">${r1label}</text>
   <text x="100" y="100" text-anchor="middle" fill="#aaa"
-        font-family="sans-serif" font-size="17">${r2label}</text>
-  <text x="100" y="165" text-anchor="middle" fill="#666"
-        font-family="sans-serif" font-size="14">${page}</text>
+        font-family="sans-serif" font-size="20" font-weight="600">${r2label}</text>
+  <text x="100" y="170" text-anchor="middle" fill="#888"
+        font-family="sans-serif" font-size="18" font-weight="700">${page}</text>
 </svg>`;
 		}
 

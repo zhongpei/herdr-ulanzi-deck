@@ -62,84 +62,68 @@ export class ProfileManager {
 		return null;
 	}
 
-	// Create our dedicated profile with all 14 keys assigned
+	// Create our dedicated profile with all 14 keys assigned, 4 pages
 	createProfile(deviceUuid) {
 		const profileUuid = crypto.randomUUID();
-		const pageUuid = crypto.randomUUID();
 		this.profileDir = path.join(PROFILES_DIR, `${profileUuid}.ulanziProfile`);
 
-		// Create directory structure
-		const pagesDir = path.join(this.profileDir, "Profiles", pageUuid);
-		fs.mkdirSync(path.join(pagesDir, "Files"), { recursive: true });
-		fs.mkdirSync(path.join(pagesDir, "Images"), { recursive: true });
+		fs.mkdirSync(path.join(this.profileDir, "Profiles"), { recursive: true });
 
-		// Write profile-level manifest.json
-		const profileManifest = {
-			Device: {
-				Model: "D200X",
-				UUID: deviceUuid,
-			},
-			Icon: "icon_default_profile.png",
-			Name: PROFILE_NAME,
-			Pages: {
-				Current: pageUuid,
-				Pages: [pageUuid],
-			},
-			Version: 2,
-		};
-		fs.writeFileSync(
-			path.join(this.profileDir, "manifest.json"),
-			JSON.stringify(profileManifest, null, "\t"),
-		);
-
-		// Write page manifest with all 14 keys
-		const keypadActions = {};
-		for (const key of D200X_KEYS) {
-			keypadActions[key] = {
-				Action: ACTION_UUID,
-				ActionID: crypto.randomUUID(),
-				ActionParam: {},
-				LinkedTitle: false,
-				Name: "Agent",
-				Plugin: {
-					Name: "Herdr Agent View",
-					UUID: PLUGIN_UUID,
-					Version: "0.1.0",
-				},
-				State: 0,
-				ViewParam: [
-					{
-						Icon: "",
-						IconRel: "",
-					},
+		// Build page manifest helper (14 keys + encoders)
+		const buildPageManifest = () => {
+			const keypadActions = {};
+			for (const key of D200X_KEYS) {
+				keypadActions[key] = {
+					Action: ACTION_UUID,
+					ActionID: crypto.randomUUID(),
+					ActionParam: {},
+					LinkedTitle: false,
+					Name: "Agent",
+					Plugin: { Name: "Herdr Agent View", UUID: PLUGIN_UUID, Version: "0.1.0" },
+					State: 0,
+					ViewParam: [{ Icon: "", IconRel: "" }],
+				};
+			}
+			return {
+				Controllers: [
+					{ Actions: {}, Type: "Encoder" },
+					{ Actions: keypadActions, Type: "Keypad" },
 				],
 			};
+		};
+
+		// Create 4 pages
+		const pageUuids = [];
+		for (let i = 0; i < 4; i++) {
+			const puid = crypto.randomUUID();
+			pageUuids.push(puid);
+			const pageDir = path.join(this.profileDir, "Profiles", puid);
+			fs.mkdirSync(path.join(pageDir, "Files"), { recursive: true });
+			fs.mkdirSync(path.join(pageDir, "Images"), { recursive: true });
+			fs.writeFileSync(
+				path.join(pageDir, "manifest.json"),
+				JSON.stringify(buildPageManifest(), null, "\t"),
+			);
 		}
 
-		const pageManifest = {
-			Controllers: [
-				{
-					Actions: {},
-					Type: "Encoder",
-				},
-				{
-					Actions: keypadActions,
-					Type: "Keypad",
-				},
-			],
-		};
+		// Profile manifest with 4 pages
 		fs.writeFileSync(
-			path.join(pagesDir, "manifest.json"),
-			JSON.stringify(pageManifest, null, "\t"),
+			path.join(this.profileDir, "manifest.json"),
+			JSON.stringify({
+				Device: { Model: "D200X", UUID: deviceUuid },
+				Icon: "icon_default_profile.png",
+				Name: PROFILE_NAME,
+				Pages: { Current: pageUuids[0], Pages: pageUuids },
+				Version: 2,
+			}, null, "\t"),
 		);
 
-		// Create a minimal icon placeholder
 		fs.writeFileSync(
 			path.join(this.profileDir, "icon_default_profile.png"),
 			Buffer.alloc(0),
 		);
 
-		console.log(`[profile] created "${PROFILE_NAME}" at ${this.profileDir}`);
+		console.log(`[profile] created "${PROFILE_NAME}" (${pageUuids.length} pages)`);
 		return this.profileDir;
 	}
 
