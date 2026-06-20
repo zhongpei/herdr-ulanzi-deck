@@ -134,8 +134,13 @@ export class IconRenderer {
 			line2 = sepMatch[2];
 		}
 		// Truncate if still too long
-		if (line1.length > 10) { line1 = line1.slice(0, 9) + "…"; line2 = ""; }
-		if (line2.length > 10) { line2 = line2.slice(0, 9) + "…"; }
+		if (line1.length > 10) {
+			line1 = line1.slice(0, 9) + "…";
+			line2 = "";
+		}
+		if (line2.length > 10) {
+			line2 = line2.slice(0, 9) + "…";
+		}
 
 		const textY = line2 ? "95" : "112";
 		const line2El = line2
