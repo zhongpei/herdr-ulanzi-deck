@@ -11,12 +11,13 @@ import (
 
 // ConnConfig describes one herdr connection (local or SSH).
 type ConnConfig struct {
-	Name        string `json:"name"`
-	Abbr        string `json:"abbr"`
-	Color       string `json:"color"`
-	Type        string `json:"type"` // "local" or "ssh"
-	Host        string `json:"host,omitempty"`
+	Name         string `json:"name"`
+	Abbr         string `json:"abbr"`
+	Color        string `json:"color"`
+	Type         string `json:"type"` // "local" or "ssh"
+	Host         string `json:"host,omitempty"`
 	RemoteSocket string `json:"remoteSocket,omitempty"`
+	LocalPort    int    `json:"localPort,omitempty"`
 }
 
 // AppConfig holds the full set of configured connections.

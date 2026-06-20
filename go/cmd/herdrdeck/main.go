@@ -90,6 +90,7 @@ var (
 	dc       *deck.Client
 	st       *appstate.Store
 	lastHash string
+	tunnels  []*herdr.Tunnel
 )
 
 // ─── Callbacks (called from ReadPump goroutine) ─────────────
@@ -166,8 +167,17 @@ func runMain(cmd *cobra.Command, args []string) error {
 		log.Warn().Err(err).Msg("config load issue, using defaults")
 	}
 	bridge := herdr.NewBridge()
+
+	// Cleanup SSH tunnels on exit
+	defer func() {
+		for _, tun := range tunnels {
+			tun.Close()
+		}
+	}()
+
 	for _, c := range cfg.Connections {
-		if c.Type == "local" {
+		switch c.Type {
+		case "local":
 			sock := herdr.FindLocalSocket()
 			if sock == "" {
 				log.Warn().Str("name", c.Name).Msg("no socket found for connection")
@@ -175,8 +185,33 @@ func runMain(cmd *cobra.Command, args []string) error {
 			}
 			bridge.AddConnection(c.Name, c.Abbr, c.Color, herdr.New(sock))
 			log.Debug().Str("name", c.Name).Str("socket", sock).Msg("added herdr connection")
-		} else {
-			log.Debug().Str("name", c.Name).Str("type", c.Type).Msg("skipped non-local connection")
+
+		case "ssh":
+			if c.Host == "" || c.RemoteSocket == "" {
+				log.Warn().Str("name", c.Name).Msg("ssh connection missing host or remoteSocket")
+				continue
+			}
+			tp := c.LocalPort
+			if tp == 0 {
+				tp = 19999 // default fallback
+			}
+			tun := herdr.NewTunnel(c.Host, c.RemoteSocket, tp)
+			if err := tun.Start(); err != nil {
+				log.Error().Err(err).Str("name", c.Name).Msg("SSH tunnel start failed")
+				continue
+			}
+			tunnels = append(tunnels, tun)
+			log.Debug().Str("name", c.Name).Str("host", c.Host).Int("localPort", tp).Msg("SSH tunnel started, waiting for ready...")
+			if err := tun.WaitReady(10 * time.Second); err != nil {
+				log.Error().Err(err).Str("name", c.Name).Msg("SSH tunnel not ready")
+				tun.Close()
+				continue
+			}
+			bridge.AddConnection(c.Name, c.Abbr, c.Color, herdr.New(tun.TargetAddr))
+			log.Info().Str("name", c.Name).Str("addr", tun.TargetAddr).Msg("added SSH herdr connection")
+
+		default:
+			log.Warn().Str("name", c.Name).Str("type", c.Type).Msg("unknown connection type, skipped")
 		}
 	}
 	unified := bridge.FetchAll()
