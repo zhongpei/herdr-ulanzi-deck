@@ -1,0 +1,5 @@
+node_modules/
+UlanziDeckPlugin-SDK/
+herdr/
+*.log
+.DS_Store

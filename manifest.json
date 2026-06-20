@@ -1,0 +1,33 @@
+{
+  "Author": "herdr-deck",
+  "Name": "Herdr Agent View",
+  "Description": "Display Herdr AI agent status on UlanziDeck",
+  "Icon": "assets/store_icon.png",
+  "Version": "0.1.0",
+  "Category": "Developer",
+  "CategoryIcon": "assets/category.png",
+  "CodePath": "src/index.js",
+  "Type": "JavaScript",
+  "UUID": "com.ulanzi.herdr.agentview",
+  "Actions": [
+    {
+      "Name": "Agent Monitor",
+      "Icon": "assets/action.png",
+      "UUID": "com.ulanzi.herdr.agentview.monitor",
+      "States": [
+        { "Name": "Active", "Image": "assets/action.png" }
+      ],
+      "Controllers": ["Keypad"],
+      "Devices": ["D200X"],
+      "SupportedInMultiActions": false,
+      "DisableAutomaticStates": true
+    }
+  ],
+  "OS": [
+    { "Platform": "mac", "MinimumVersion": "10.11" },
+    { "Platform": "windows", "MinimumVersion": "10" }
+  ],
+  "Software": {
+    "MinVersion": "2.1.0"
+  }
+}

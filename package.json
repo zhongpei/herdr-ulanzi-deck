@@ -1,0 +1,11 @@
+{
+  "name": "herdr-deck",
+  "version": "0.1.0",
+  "description": "UlanziDeck plugin: display Herdr agent status",
+  "type": "module",
+  "main": "src/index.js",
+  "dependencies": {
+    "sharp": "^0.35.2",
+    "ws": "^8.16.0"
+  }
+}
