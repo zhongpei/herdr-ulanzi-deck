@@ -34,7 +34,7 @@ export class DeckClient {
 			this.ws = new WebSocket(`ws://${this.address}:${this.port}`);
 
 			this.ws.on("open", () => {
-				// Must match SDK format: code=0 + cmd=connected + uuid
+				// Connect as action UUID (5-seg) — keydown events route here
 				this.WS_SEND({
 					code: 0,
 					cmd: "connected",

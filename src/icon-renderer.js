@@ -92,65 +92,43 @@ export class IconRenderer {
 		return this.toDataUri(svg);
 	}
 
-	// ─── Navigation keys (K11, K13) ──────────────────────────────
-	// Scheme C: "← LCL" / "DEV →" with large bold text
-	renderNavKey(_type, label, enabled) {
-		const opacity = enabled ? "1" : "0.3";
-		const text = this.escapeXml(label || "");
-
+	// ─── ALL button (K11) ──────────────────────────────────────
+	renderNavAll(data) {
+		const fill = data.active ? "#4A90D9" : "#3a3a3a";
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" rx="8" fill="#3a3a3a"/>
-  <text x="100" y="110" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="32" font-weight="800"
-        opacity="${opacity}">${text}</text>
+  <rect width="200" height="200" rx="8" fill="${fill}"/>
+  <text x="100" y="115" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="36" font-weight="800">ALL</text>
 </svg>`;
-
 		return this.toDataUri(svg);
 	}
 
-	// ─── Current page info (K12) ─────────────────────────────────
-	renderCurrentKey(data) {
-		let svg;
-		if (data.singleWs) {
-			const label = this.escapeXml(data.label || "");
-			const sub = this.escapeXml(data.sublabel || "");
-			const page = this.escapeXml(data.pageLabel || "");
-
-			svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" rx="8" fill="#2a2a2a"/>
-  <text x="100" y="85" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="26" font-weight="700">${label}</text>
-  ${
-		sub
-			? `<text x="100" y="125" text-anchor="middle" fill="#aaa"
-        font-family="sans-serif" font-size="20" font-weight="600">${sub}</text>`
-			: ""
+	// ─── Machine cycle button (K12) ────────────────────────────
+	// Background = machine color when active, dark gray when inactive
+	renderNavMachine(data) {
+		const bgColor = data.active && data.currentColor ? data.currentColor : "#3a3a3a";
+		const nextColor = data.active ? "rgba(255,255,255,0.6)" : "#666";
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" rx="8" fill="${bgColor}" opacity="0.85"/>
+  <text x="100" y="105" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="40" font-weight="800">${data.currentAbbr}</text>
+  <text x="100" y="175" text-anchor="middle" fill="${nextColor}"
+        font-family="sans-serif" font-size="16" font-weight="600">→ ${data.nextAbbr}</text>
+</svg>`;
+		return this.toDataUri(svg);
 	}
-  <text x="100" y="175" text-anchor="middle" fill="#888"
-        font-family="sans-serif" font-size="18" font-weight="700">${page}</text>
-</svg>`;
-		} else {
-			const r1 = data.rows?.[0];
-			const r2 = data.rows?.[1];
-			const page = this.escapeXml(data.pageLabel || "");
-			const r1label = r1
-				? `${this.escapeXml(r1.abbr)}:${this.escapeXml(r1.label)}`
-				: "";
-			const r2label = r2
-				? `· ${this.escapeXml(r2.abbr)}:${this.escapeXml(r2.label)}`
-				: "";
 
-			svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+	// ─── Space cycle button (K13) ─────────────────────────────
+	renderNavSpace(data) {
+		const label =
+			data.active && data.nextLabel ? this.escapeXml(data.nextLabel) : "...";
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="#2a2a2a"/>
-  <text x="100" y="55" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="22" font-weight="700">${r1label}</text>
-  <text x="100" y="100" text-anchor="middle" fill="#aaa"
-        font-family="sans-serif" font-size="20" font-weight="600">${r2label}</text>
-  <text x="100" y="170" text-anchor="middle" fill="#888"
-        font-family="sans-serif" font-size="18" font-weight="700">${page}</text>
+  <text x="100" y="105" text-anchor="middle" fill="#aaa"
+        font-family="sans-serif" font-size="20" font-weight="600">WS</text>
+  <text x="100" y="165" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="22" font-weight="700">${label}</text>
 </svg>`;
-		}
-
 		return this.toDataUri(svg);
 	}
 

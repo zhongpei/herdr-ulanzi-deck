@@ -44,10 +44,10 @@ const KEY_MAP = {
 // Reverse map: key descriptor → physical key
 function physicalKeyForDescriptor(keyId) {
 	const map = {
-		nav_prev: "0_2", // K11
-		nav_current: "1_2", // K12
-		nav_next: "2_2", // K13
-		stats: "3_2", // K14 (large, spans col 3-4 row 2)
+		nav_all: "0_2", // K11
+		nav_machine: "1_2", // K12
+		nav_space: "2_2", // K13
+		stats: "3_2", // K14
 	};
 	if (map[keyId]) return map[keyId];
 
@@ -120,8 +120,8 @@ async function main() {
 		renderAll(buttonMapper, iconRenderer, deckClient);
 	});
 
-	// Log page info for debugging
-	logPageInfo(buttonMapper, stateManager);
+	// Log filter info for debugging
+	logFilterInfo(buttonMapper, stateManager);
 
 	// Keep alive
 	console.log("[main] herdr-deck running. Press Ctrl+C to stop.");
@@ -139,12 +139,14 @@ async function renderAll(mapper, renderer, deck) {
 			case "agent":
 				svg = renderer.renderAgentKey(kd);
 				break;
-			case "navPrev":
-			case "navNext":
-				svg = renderer.renderNavKey(kd.type, kd.label, kd.enabled);
+			case "navAll":
+				svg = renderer.renderNavAll(kd);
 				break;
-			case "navCurrent":
-				svg = renderer.renderCurrentKey(kd);
+			case "navMachine":
+				svg = renderer.renderNavMachine(kd);
+				break;
+			case "navSpace":
+				svg = renderer.renderNavSpace(kd);
 				break;
 			case "stats":
 				svg = renderer.renderStatsKey(kd.stats);
@@ -184,72 +186,74 @@ async function renderAll(mapper, renderer, deck) {
 				const s = kd.status?.[0]?.toUpperCase() || "?";
 				return `${kd.agentType?.[0]?.toUpperCase() || "?"}${s}`;
 			}
-			if (kd.type === "navPrev") return "<";
-			if (kd.type === "navCurrent") return "≡";
-			if (kd.type === "navNext") return ">";
+			if (kd.type === "navAll") return "A";
+			if (kd.type === "navMachine") return "M";
+			if (kd.type === "navSpace") return "S";
 			if (kd.type === "stats") return "∑";
 			return "·";
 		});
 		console.log(`[render]   ${labels.join(" │ ")}`);
 	}
 	console.log(
-		`[render] --- page ${mapper.getCurrentPage() + 1}/${stateManager.computePages().length} ---`,
+		`[render] --- mode ${mapper.mode} conn=${mapper.connName || "-"} ws=${mapper.wsId || "-"} ---`,
 	);
 }
 
 // ─── Key press handler ───────────────────────────────────────────
 function handleKeyDown(msg, mapper, iconRenderer) {
 	const physKey = msg.key;
+	console.log("[input] keydown:", JSON.stringify({ key: msg.key }));
 
-	if (physKey === "0_2") {
-		// K11 — previous page
-		if (mapper.prevPage()) {
-			renderAll(mapper, iconRenderer, deck);
-		}
-	} else if (physKey === "2_2") {
-		// K13 — next page
-		if (mapper.nextPage()) {
-			renderAll(mapper, iconRenderer, deck);
-		}
-	} else if (physKey === "1_2") {
-		// K12 — current page info (no action)
-	} else {
-		// Agent key — could focus agent in future (requires herdr connection)
-		const idx = KEY_MAP[physKey];
-		if (idx !== undefined && idx < 10) {
-			const keyData = mapper.renderAll();
-			const agentData = keyData[idx];
-			if (agentData && agentData.type === "agent") {
-				console.log(
-					`[action] focus agent: ${agentData.connName}/${agentData.paneId} (${agentData.alias})`,
-				);
+	switch (physKey) {
+		case "0_2": // K11 — ALL
+			mapper.setAll();
+			renderAll(mapper, iconRenderer, deckClient);
+			break;
+		case "1_2": // K12 — next machine
+			mapper.nextMachine();
+			renderAll(mapper, iconRenderer, deckClient);
+			break;
+		case "2_2": // K13 — next space
+			mapper.nextSpace();
+			renderAll(mapper, iconRenderer, deckClient);
+			break;
+		default: {
+			// Agent key
+			const idx = KEY_MAP[physKey];
+			if (idx !== undefined && idx < 10) {
+				const keyData = mapper.renderAll();
+				const agentData = keyData[idx];
+				if (agentData && agentData.type === "agent") {
+					console.log(
+						`[action] focus: ${agentData.connName}/${agentData.paneId}`,
+					);
+				}
 			}
 		}
 	}
 }
 
 // ─── Debug ───────────────────────────────────────────────────────
-function logPageInfo(_mapper, stateManager) {
-	const pages = stateManager.computePages();
-	console.log(`[info] ${pages.length} page(s) total`);
-
-	for (let p = 0; p < pages.length; p++) {
-		const page = pages[p];
-		const desc = page
-			.map((chunk, i) => {
-				if (!chunk) return `row${i + 1}: empty`;
-				const agentCount = chunk.agents.length;
-				const label = `${chunk.connAbbr}:${chunk.label}`;
-				return `row${i + 1}: ${label} (${agentCount} agents)`;
-			})
-			.join(", ");
-		console.log(`[info]   page ${p + 1}: ${desc}`);
-	}
-
+function logFilterInfo(_mapper, stateManager) {
+	const machines = stateManager.getMachines();
+	const allAgents = stateManager.getAllAgents();
 	const stats = stateManager.computeStats();
+
+	console.log(
+		`[info] ${machines.length} machine(s), ${allAgents.length} total agents`,
+	);
 	console.log(
 		`[info] stats: ✅${stats.done} ⏸${stats.idle} ⏳${stats.working} ❌${stats.blocked} ❓${stats.unknown}`,
 	);
+
+	// Show top 10 sorted agents
+	const top10 = stateManager.getFilteredAgents(null, null);
+	console.log("[info] top 10 all:");
+	top10.forEach((a, i) => {
+		console.log(
+			`  ${i + 1}. [${a.connAbbr}] ${a.agent}/${a.name || "?"} = ${a.agent_status}`,
+		);
+	});
 }
 
 // ─── Boot ────────────────────────────────────────────────────────

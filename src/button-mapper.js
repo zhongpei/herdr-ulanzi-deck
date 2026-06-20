@@ -1,177 +1,166 @@
-// ButtonMapper: maps state tree → 14 key render commands
+// ButtonMapper: maps state + filter → 14 key render commands
 //
-// D200X layout:
-//   row 0: K1-K5  (key_0_0 ~ key_0_4)  ← first WS chunk agents
-//   row 1: K6-K10 (key_1_0 ~ key_1_4)  ← second WS chunk agents
-//   row 2: K11 (key_2_0) K12 (key_2_1) K13 (key_2_2) K14 (key_2_3, wide)
+// Filter modes:
+//   ALL         → show all machines (K11 active)
+//   Machine     → show one machine's agents (K12 cycles)
+//   Machine+WS  → show one workspace's agents (K12 + K13 intersection)
+//
+// Sort: BLOCKED(0) > DONE(1) > WORKING(2) > IDLE(3) > UNKNOWN(4)
 
 export class ButtonMapper {
 	constructor(stateManager) {
 		this.state = stateManager;
-		this.currentPage = 0;
+		// Filter state
+		this.mode = "all"; // "all" | "machine" | "space"
+		this.connName = null; // current machine filter
+		this.wsId = null; // current space filter
 	}
 
-	setPage(n) {
-		this.currentPage = n;
+	// ─── Filter operations ───────────────────────────────────────────
+	setAll() {
+		this.mode = "all";
+		this.connName = null;
+		this.wsId = null;
 	}
 
-	getCurrentPage() {
-		return this.currentPage;
-	}
+	nextMachine() {
+		const machines = this.state.getMachines();
+		if (machines.length === 0) return;
 
-	prevPage() {
-		if (this.currentPage > 0) {
-			this.currentPage--;
-			return true;
+		if (!this.connName) {
+			// From ALL → first machine
+			this.connName = machines[0].connName;
+		} else {
+			const idx = machines.findIndex((m) => m.connName === this.connName);
+			this.connName = machines[(idx + 1) % machines.length].connName;
 		}
-		return false;
+		this.mode = "machine";
+		this.wsId = null; // clear space filter
 	}
 
-	nextPage() {
-		const totalPages = this.state.computePages().length;
-		if (this.currentPage < totalPages - 1) {
-			this.currentPage++;
-			return true;
+	nextSpace() {
+		if (!this.connName) {
+			// No machine selected, start with first machine
+			this.nextMachine();
+			return;
 		}
-		return false;
+
+		const spaces = this.state.getSpaces(this.connName);
+		if (spaces.length === 0) return;
+
+		if (!this.wsId) {
+			this.wsId = spaces[0].wsId;
+		} else {
+			const idx = spaces.findIndex((s) => s.wsId === this.wsId);
+			this.wsId = spaces[(idx + 1) % spaces.length].wsId;
+		}
+		this.mode = "space";
 	}
 
-	// Returns 14 key render descriptors (one per physical key)
+	// ─── Render ──────────────────────────────────────────────────────
 	renderAll() {
-		const pageData = this.state.getPage(this.currentPage);
-		const totalPages = this.state.computePages().length;
+		const agents = this.state.getFilteredAgents(this.connName, this.wsId);
+		const machines = this.state.getMachines();
 		const stats = this.state.computeStats();
+		const currentMachine = machines.find((m) => m.connName === this.connName);
 
-		if (!pageData) {
-			return this.renderEmpty();
-		}
+		// Current machine info for K12/K13 display
+		const machineIdx = this.connName
+			? machines.findIndex((m) => m.connName === this.connName)
+			: -1;
+		const nextMachine =
+			machineIdx >= 0
+				? machines[(machineIdx + 1) % machines.length]
+				: machines.length > 1
+					? machines[1]
+					: null;
+		const spaces = this.connName ? this.state.getSpaces(this.connName) : [];
+		const spaceIdx = this.wsId
+			? spaces.findIndex((s) => s.wsId === this.wsId)
+			: -1;
+		const nextSpace =
+			spaceIdx >= 0
+				? spaces[(spaceIdx + 1) % spaces.length]
+				: spaces.length > 0
+					? spaces[0]
+					: null;
 
 		const keys = [
-			// Row 1: K1-K5 (indices 0-4)
-			...this.renderAgentRow(pageData.row1, 0, 4),
-			// Row 2: K6-K10 (indices 5-9)
-			...this.renderAgentRow(pageData.row2, 5, 9),
-			// Row 3: K11=navPrev, K12=navCurrent, K13=navNext
-			this.renderNavPrev(pageData, this.currentPage),
-			this.renderNavCurrent(pageData, this.currentPage, totalPages),
-			this.renderNavNext(pageData, this.currentPage, totalPages),
-			// Row 3 last: K14=stats (wide)
+			// K1-K10: agents
+			...this.renderAgents(agents),
+			// K11: ALL button
+			this.renderAllButton(this.mode === "all"),
+			// K12: machine cycle
+			this.renderMachineButton(
+				currentMachine,
+				nextMachine,
+				machines,
+				this.mode === "machine" || this.mode === "space",
+			),
+			// K13: space cycle
+			this.renderSpaceButton(spaces, nextSpace, this.mode === "space"),
+			// K14: stats
 			this.renderStats(stats),
 		];
 
 		return keys;
 	}
 
-	renderEmpty() {
-		const empty = [];
-		for (let i = 0; i < 14; i++) {
-			empty.push({ keyId: `empty_${i}`, type: "empty" });
-		}
-		return empty;
-	}
-
-	// Render K1-K5 or K6-K10
-	renderAgentRow(wsChunk, startIdx, _endIdx) {
+	renderAgents(agents) {
 		const keys = [];
-		const agents = wsChunk ? wsChunk.agents : [];
-
-		for (let i = 0; i < 5; i++) {
+		for (let i = 0; i < 10; i++) {
 			const agent = agents[i];
 			if (agent) {
 				keys.push({
-					keyId: `agent_${startIdx + i}`,
+					keyId: `agent_${i}`,
 					type: "agent",
 					agentType: agent.agent,
 					alias: agent.name || agent.agent || "",
 					status: agent.agent_status,
 					focused: !!agent.focused,
 					paneId: agent.pane_id,
-					connName: wsChunk.connName,
-					connAbbr: wsChunk.connAbbr,
-					connAbbrColor: wsChunk.connAbbrColor || "#888888",
-					wsLabel: wsChunk.label || "",
-					customStatus: agent.custom_status,
+					connName: agent.connName,
+					connAbbr: agent.connAbbr,
+					connAbbrColor: agent.connAbbrColor || "#888888",
+					wsLabel: agent.wsLabel || "",
 				});
 			} else {
-				keys.push({ keyId: `empty_${startIdx + i}`, type: "empty" });
+				keys.push({ keyId: `empty_${i}`, type: "empty" });
 			}
 		}
 		return keys;
 	}
 
-	// K11 — Previous page (format: "← LCL")
-	renderNavPrev(_pageData, pageIdx) {
-		let label = "";
-		const enabled = pageIdx > 0;
-
-		if (enabled) {
-			const prevPage = this.state.getPage(pageIdx - 1);
-			if (prevPage && prevPage.row1) {
-				label = `← ${prevPage.row1.connAbbr}`;
-			}
-		}
-
-		return { keyId: "nav_prev", type: "navPrev", label, enabled };
+	renderAllButton(active) {
+		return {
+			keyId: "nav_all",
+			type: "navAll",
+			label: "ALL",
+			active,
+		};
 	}
 
-	// K12 — Current page WS info
-	renderNavCurrent(pageData, pageIdx, totalPages) {
-		const row1 = pageData.row1;
-		const row2 = pageData.row2;
-
-		if (row1 && !row2) {
-			// Single WS page (workspace spans multiple pages)
-			return {
-				keyId: "nav_current",
-				type: "navCurrent",
-				singleWs: true,
-				label: `${row1.connAbbr}:${row1.label}`,
-				sublabel:
-					row1.totalChunks > 1
-						? `${row1.chunkIndex + 1}/${row1.totalChunks}`
-						: "",
-				pageLabel: `Page ${pageIdx + 1}/${totalPages}`,
-			};
-		} else if (row1 && row2) {
-			// Dual WS page
-			return {
-				keyId: "nav_current",
-				type: "navCurrent",
-				singleWs: false,
-				rows: [
-					{ abbr: row1.connAbbr, label: row1.label },
-					{ abbr: row2.connAbbr, label: row2.label },
-				],
-				pageLabel: `Page ${pageIdx + 1}/${totalPages}`,
-			};
-		} else {
-			return {
-				keyId: "nav_current",
-				type: "navCurrent",
-				singleWs: true,
-				label: "",
-				sublabel: "",
-				pageLabel: "",
-			};
-		}
+	renderMachineButton(current, next, _allMachines, active) {
+		return {
+			keyId: "nav_machine",
+			type: "navMachine",
+			currentAbbr: current ? current.connAbbr : "-",
+			currentColor: current ? current.connAbbrColor : "#888",
+			nextAbbr: next ? next.connAbbr : "-",
+			active,
+		};
 	}
 
-	// K13 — Next page
-	renderNavNext(_pageData, pageIdx, totalPages) {
-		let label = "";
-		const enabled = pageIdx < totalPages - 1;
-
-		if (enabled) {
-			const nextPage = this.state.getPage(pageIdx + 1);
-			if (nextPage && nextPage.row1) {
-				label = `${nextPage.row1.connAbbr} →`;
-			}
-		}
-
-		return { keyId: "nav_next", type: "navNext", label, enabled };
+	renderSpaceButton(spaces, nextSpace, active) {
+		return {
+			keyId: "nav_space",
+			type: "navSpace",
+			count: spaces.length,
+			nextLabel: nextSpace ? nextSpace.label : "-",
+			active,
+		};
 	}
 
-	// K14 — Stats bar
 	renderStats(stats) {
 		return { keyId: "stats", type: "stats", stats };
 	}

@@ -16,7 +16,8 @@ export function buildMockUnifiedWorkspaces() {
 			workspace_id: "ws-1",
 			label: "main-proj",
 			agents: buildMockAgents(
-				3, ["pi", "cursor", "pi"],
+				3,
+				["pi", "cursor", "pi"],
 				["working", "blocked", "idle"],
 				["review", "fix-bug", "idle"],
 			),
@@ -28,7 +29,8 @@ export function buildMockUnifiedWorkspaces() {
 			workspace_id: "ws-2",
 			label: "web-app",
 			agents: buildMockAgents(
-				2, ["claude", "pi"],
+				2,
+				["claude", "pi"],
 				["done", "working"],
 				["api-done", "feat-auth"],
 			),
@@ -40,7 +42,8 @@ export function buildMockUnifiedWorkspaces() {
 			workspace_id: "ws-5",
 			label: "alpha-svc",
 			agents: buildMockAgents(
-				2, ["kimi", "grok"],
+				2,
+				["kimi", "grok"],
 				["idle", "working"],
 				["waiting", "research"],
 			),
@@ -51,9 +54,7 @@ export function buildMockUnifiedWorkspaces() {
 			connAbbrColor: "#4ADE80",
 			workspace_id: "ws-6",
 			label: "tools",
-			agents: buildMockAgents(
-				1, ["codex"], ["done"], ["fmt-complete"],
-			),
+			agents: buildMockAgents(1, ["codex"], ["done"], ["fmt-complete"]),
 		},
 		// ── DEV: 5 workspaces ──
 		{
@@ -63,7 +64,8 @@ export function buildMockUnifiedWorkspaces() {
 			workspace_id: "ws-3",
 			label: "backend",
 			agents: buildMockAgents(
-				4, ["gemini", "copilot", "devin", "cursor"],
+				4,
+				["gemini", "copilot", "devin", "cursor"],
 				["idle", "working", "blocked", "done"],
 				["waiting", "deploy", "test-fail", "done"],
 			),
@@ -83,7 +85,8 @@ export function buildMockUnifiedWorkspaces() {
 			workspace_id: "ws-7",
 			label: "staging",
 			agents: buildMockAgents(
-				3, ["opencode", "kilo", "amp"],
+				3,
+				["opencode", "kilo", "amp"],
 				["idle", "idle", "blocked"],
 				["standby", "standby", "oom-kill"],
 			),
@@ -95,7 +98,8 @@ export function buildMockUnifiedWorkspaces() {
 			workspace_id: "ws-8",
 			label: "mobile",
 			agents: buildMockAgents(
-				2, ["claude", "cursor"],
+				2,
+				["claude", "cursor"],
 				["working", "done"],
 				["ui-review", "build-fix"],
 			),
@@ -107,7 +111,8 @@ export function buildMockUnifiedWorkspaces() {
 			workspace_id: "ws-9",
 			label: "api-gw",
 			agents: buildMockAgents(
-				2, ["devin", "gemini"],
+				2,
+				["devin", "gemini"],
 				["working", "idle"],
 				["rate-limit", "waiting"],
 			),
@@ -120,7 +125,8 @@ export function buildMockUnifiedWorkspaces() {
 			workspace_id: "ws-10",
 			label: "prod-site",
 			agents: buildMockAgents(
-				3, ["pi", "cursor", "pi"],
+				3,
+				["pi", "cursor", "pi"],
 				["done", "working", "idle"],
 				["deployed", "monitor", "standby"],
 			),

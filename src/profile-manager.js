@@ -79,7 +79,11 @@ export class ProfileManager {
 					ActionParam: {},
 					LinkedTitle: false,
 					Name: "Agent",
-					Plugin: { Name: "Herdr Agent View", UUID: PLUGIN_UUID, Version: "0.1.0" },
+					Plugin: {
+						Name: "Herdr Agent View",
+						UUID: PLUGIN_UUID,
+						Version: "0.1.0",
+					},
 					State: 0,
 					ViewParam: [{ Icon: "", IconRel: "" }],
 				};
@@ -109,13 +113,17 @@ export class ProfileManager {
 		// Profile manifest with 4 pages
 		fs.writeFileSync(
 			path.join(this.profileDir, "manifest.json"),
-			JSON.stringify({
-				Device: { Model: "D200X", UUID: deviceUuid },
-				Icon: "icon_default_profile.png",
-				Name: PROFILE_NAME,
-				Pages: { Current: pageUuids[0], Pages: pageUuids },
-				Version: 2,
-			}, null, "\t"),
+			JSON.stringify(
+				{
+					Device: { Model: "D200X", UUID: deviceUuid },
+					Icon: "icon_default_profile.png",
+					Name: PROFILE_NAME,
+					Pages: { Current: pageUuids[0], Pages: pageUuids },
+					Version: 2,
+				},
+				null,
+				"\t",
+			),
 		);
 
 		fs.writeFileSync(
@@ -123,7 +131,9 @@ export class ProfileManager {
 			Buffer.alloc(0),
 		);
 
-		console.log(`[profile] created "${PROFILE_NAME}" (${pageUuids.length} pages)`);
+		console.log(
+			`[profile] created "${PROFILE_NAME}" (${pageUuids.length} pages)`,
+		);
 		return this.profileDir;
 	}
 

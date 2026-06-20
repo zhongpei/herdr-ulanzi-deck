@@ -1,56 +1,99 @@
-// StateManager: manages unified workspace tree and pagination logic
-//
-// Each page = 2 workspace chunks (row1 + row2)
-// Each chunk ≤ 5 agents
+// StateManager: manages unified workspace tree with sort + filter
+// No pagination. Agents are sorted by priority: BLOCKED > DONE > WORKING > IDLE > UNKNOWN
+// K1-K10 show top 10 after filtering by machine/space
+
+const STATUS_PRIORITY = {
+	blocked: 0,
+	done: 1,
+	working: 2,
+	idle: 3,
+	unknown: 4,
+};
 
 export class StateManager {
 	constructor() {
-		this.unified = [];
+		this.unified = []; // UnifiedWorkspace[]
 		this.listeners = [];
 	}
 
-	// Initialize or update the unified workspace list
-	// unifiedWorkspaces: UnifiedWorkspace[] from mock or real data
 	init(unifiedWorkspaces) {
 		this.unified = unifiedWorkspaces;
 		this.notify("stateChanged");
 	}
 
-	// Compute paginated view
-	// returns { pages: [[chunk, chunk?], ...] }
-	computePages() {
-		// Each WS is split into ≤5 agent slices (chunks)
-		const chunks = [];
+	// Get all agents flattened with their workspace/machine info
+	getAllAgents() {
+		const agents = [];
 		for (const ws of this.unified) {
-			const slices = this.sliceArray(ws.agents, 5);
-			for (let i = 0; i < slices.length; i++) {
-				chunks.push({
-					...ws,
-					agents: slices[i],
-					chunkIndex: i,
-					totalChunks: slices.length,
-					isPartial: slices.length > 1, // being split across pages
+			for (const agent of ws.agents) {
+				agents.push({
+					...agent,
+					connName: ws.connName,
+					connAbbr: ws.connAbbr,
+					connAbbrColor: ws.connAbbrColor,
+					wsLabel: ws.label,
+					wsId: ws.workspace_id,
 				});
 			}
 		}
-		// Group into pages: 2 chunks per page
-		return this.sliceArray(chunks, 2);
+		return agents;
 	}
 
-	// Get a specific page
-	getPage(pageIndex) {
-		const pages = this.computePages();
-		if (pageIndex < 0 || pageIndex >= pages.length) return null;
-		const page = pages[pageIndex];
-		return {
-			page: pageIndex,
-			totalPages: pages.length,
-			row1: page[0] || null, // K1-K5 chunk
-			row2: page[1] || null, // K6-K10 chunk
-		};
+	// Get sorted, filtered, truncated agent list
+	getFilteredAgents(filterConnName, filterWsId) {
+		let agents = this.getAllAgents();
+
+		// Apply machine filter
+		if (filterConnName) {
+			agents = agents.filter((a) => a.connName === filterConnName);
+		}
+
+		// Apply space filter (intersection with machine filter)
+		if (filterWsId) {
+			agents = agents.filter((a) => a.wsId === filterWsId);
+		}
+
+		// Sort: by status priority, then by machine order
+		agents.sort((a, b) => {
+			const pa = STATUS_PRIORITY[a.agent_status] ?? 4;
+			const pb = STATUS_PRIORITY[b.agent_status] ?? 4;
+			if (pa !== pb) return pa - pb;
+			// Same status: group by machine (use original unified order)
+			return (a.connName || "").localeCompare(b.connName || "");
+		});
+
+		return agents.slice(0, 10); // K1-K10
 	}
 
-	// Global stats across ALL workspaces
+	// Get unique machine names in order
+	getMachines() {
+		const seen = new Set();
+		const machines = [];
+		for (const ws of this.unified) {
+			if (!seen.has(ws.connName)) {
+				seen.add(ws.connName);
+				machines.push({
+					connName: ws.connName,
+					connAbbr: ws.connAbbr,
+					connAbbrColor: ws.connAbbrColor,
+				});
+			}
+		}
+		return machines;
+	}
+
+	// Get unique spaces for a given machine
+	getSpaces(connName) {
+		const spaces = [];
+		for (const ws of this.unified) {
+			if (ws.connName === connName) {
+				spaces.push({ wsId: ws.workspace_id, label: ws.label });
+			}
+		}
+		return spaces;
+	}
+
+	// Global stats across ALL workspaces (K14)
 	computeStats() {
 		const stats = { done: 0, idle: 0, working: 0, blocked: 0, unknown: 0 };
 		for (const ws of this.unified) {
@@ -71,13 +114,5 @@ export class StateManager {
 		for (const fn of this.listeners) {
 			fn(event, data);
 		}
-	}
-
-	sliceArray(arr, size) {
-		const result = [];
-		for (let i = 0; i < arr.length; i += size) {
-			result.push(arr.slice(i, i + size));
-		}
-		return result;
 	}
 }
