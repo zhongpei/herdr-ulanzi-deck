@@ -266,11 +266,11 @@ func TestRenderStatsKey_Basic(t *testing.T) {
 		t.Error("B should use red")
 	}
 	// CPU/MEM labels (white) and values should be present
-	if !strings.Contains(svg, ">CPU<") {
-		t.Error("K14 should show CPU label")
+	if !strings.Contains(svg, ">C<") {
+		t.Error("K14 should show C label")
 	}
-	if !strings.Contains(svg, ">MEM<") {
-		t.Error("K14 should show MEM label")
+	if !strings.Contains(svg, ">M<") {
+		t.Error("K14 should show M label")
 	}
 	if !strings.Contains(svg, "24%") {
 		t.Error("K14 should show CPU value 24%%")
