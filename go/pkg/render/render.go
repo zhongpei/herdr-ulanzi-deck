@@ -173,6 +173,7 @@ func (r *Renderer) RenderNavSpace(d types.NavSpaceData) string {
 
 // ─── Stats bar (K14 - wide key) ──────────────────────────────
 // Compact colored stats on the right side.
+// Each item: colored letter (status) + white number, spaced for readability.
 func (r *Renderer) RenderStatsKey(stats types.AgentStats) string {
 	items := []struct {
 		Label string
@@ -187,18 +188,26 @@ func (r *Renderer) RenderStatsKey(stats types.AgentStats) string {
 	}
 
 	var inner strings.Builder
-	x := 380
-	step := 52
+	x := 370
+	step := 65
+	numGap := 4
 	for i := len(items) - 1; i >= 0; i-- {
 		item := items[i]
 		// Skip zero items (but always show D for symmetry)
 		if item.Count == 0 && item.Label != "D" {
 			continue
 		}
+		// Label — colored, right-aligned
 		inner.WriteString(fmt.Sprintf(`
   <text x="%d" y="185" text-anchor="end" fill="%s"
-        font-family="sans-serif" font-size="28" font-weight="800">%s%d</text>`,
-			x, item.Color, item.Label, item.Count,
+        font-family="sans-serif" font-size="28" font-weight="800">%s</text>`,
+			x, item.Color, item.Label,
+		))
+		// Number — white, left-aligned right after the label
+		inner.WriteString(fmt.Sprintf(`
+  <text x="%d" y="185" text-anchor="start" fill="white"
+        font-family="sans-serif" font-size="28" font-weight="800">%d</text>`,
+			x+numGap, item.Count,
 		))
 		x -= step
 	}

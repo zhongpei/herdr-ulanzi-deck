@@ -221,17 +221,41 @@ func TestRenderStatsKey_Basic(t *testing.T) {
 		Blocked: 1,
 		Unknown: 0,
 	}))
-	if !strings.Contains(svg, "D3") {
-		t.Error("should show Done count D3")
+	// Each item is now two <text> elements: colored letter + white number
+	if !strings.Contains(svg, ">D<" ) {
+		t.Error("should show Done label D")
 	}
-	if !strings.Contains(svg, "I2") {
-		t.Error("should show Idle count I2")
+	if !strings.Contains(svg, ">3<" ) {
+		t.Error("should show Done count 3")
 	}
-	if !strings.Contains(svg, "W4") {
-		t.Error("should show Working count W4")
+	if !strings.Contains(svg, ">I<" ) {
+		t.Error("should show Idle label I")
 	}
-	if !strings.Contains(svg, "B1") {
-		t.Error("should show Blocked count B1")
+	if !strings.Contains(svg, ">2<" ) {
+		t.Error("should show Idle count 2")
+	}
+	if !strings.Contains(svg, ">W<" ) {
+		t.Error("should show Working label W")
+	}
+	if !strings.Contains(svg, ">4<" ) {
+		t.Error("should show Working count 4")
+	}
+	if !strings.Contains(svg, ">B<" ) {
+		t.Error("should show Blocked label B")
+	}
+	if !strings.Contains(svg, ">1<" ) {
+		t.Error("should show Blocked count 1")
+	}
+	// Numbers should be white
+	if !strings.Contains(svg, `fill="white"`) {
+		t.Error("numbers should be white")
+	}
+	// Letters should use their status colors
+	if !strings.Contains(svg, `fill="#27AE60"`) {
+		t.Error("D should use green")
+	}
+	if !strings.Contains(svg, `fill="#E74C3C"`) {
+		t.Error("B should use red")
 	}
 }
 
@@ -244,11 +268,11 @@ func TestRenderStatsKey_ZeroHidden(t *testing.T) {
 		Blocked: 0,
 		Unknown: 0,
 	}))
-	if !strings.Contains(svg, "D1") {
-		t.Error("should show D1")
+	if !strings.Contains(svg, ">1<" ) {
+		t.Error("should show D count 1")
 	}
-	if strings.Contains(svg, "I0") {
-		t.Error("should skip I0")
+	if strings.Contains(svg, ">I<" ) {
+		t.Error("should skip I0, no I label")
 	}
 }
 
