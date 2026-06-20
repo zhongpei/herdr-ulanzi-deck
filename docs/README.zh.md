@@ -101,6 +101,7 @@ cp connections.sample.json ~/.config/herdr-deck/connections.json
 
 ```json
 {
+  "k11Mode": "all",
   "connections": [
     {
       "name": "local",
@@ -122,6 +123,8 @@ cp connections.sample.json ~/.config/herdr-deck/connections.json
 }
 ```
 
+`k11Mode` 可选值：`"all"`（默认，显示全部 agent）、`"active"`（仅显示 BLOCKED/WORKING/DONE）。
+
 样例文件在 [`connections.sample.json`](../connections.sample.json)。
 
 ```
@@ -131,9 +134,9 @@ cp connections.sample.json ~/.config/herdr-deck/connections.json
 | 按键 | 功能 |
 |-----|------|
 | K1-K10 | Agent 状态（优先级排序） |
-| K11 | **ALL** — 全部机器 |
+| K11 | **ALL** — 全部机器（k11Mode=active 时仅显示 BLOCKED/WORKING/DONE） |
 | K12 | **机器循环** — 切换机器 |
-| K13 | **Space 循环** — 切换 Space |
+| K13 | **Space 循环（全局）** — 按 workspace 标签全局过滤，不限于当前机器 |
 | K14 | **全局统计** — D / I / W / B / ? |
 
 ### K14 统计栏

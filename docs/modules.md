@@ -117,6 +117,8 @@ Entry point for the Go binary.
 - `GetFilteredAgents(connName, wsId)` → filter, sort by status priority, return top 10
 - `GetMachines()` → unique machine references in connection order
 - `GetSpaces(connName)` → unique workspace references for a given machine
+- `SetK11Mode(mode)` → sets K11 filter mode (`"all"` = show all, `"active"` = only BLOCKED/WORKING/DONE)
+- `GetAllSpaces()` → unique workspace labels across ALL machines (deduplicated by label, not wsID)
 - `ComputeStats()` → global agent state tallies (D/I/W/B/?)
 
 ### `pkg/mapper/mapper.go`
@@ -124,7 +126,7 @@ Entry point for the Go binary.
 - Three filter modes: `ModeAll`, `ModeMachine`, `ModeSpace`
 - `SetAll()` → clears all filters, switches to ALL mode
 - `NextMachine()` → cycles to next machine (first call from ALL goes to first machine)
-- `NextSpace()` → cycles to next workspace within current machine
+- `NextSpace()` → cycles to next workspace globally (label-based, all machines). Clears machine filter. No longer scoped to current machine
 - `RenderAll()` → returns 14 `types.KeyCommand` (10 agents + K11 ALL + K12 machine + K13 space + K14 stats)
 
 ### `pkg/render/render.go`

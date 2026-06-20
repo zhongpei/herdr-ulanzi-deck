@@ -73,6 +73,12 @@ Unix Socket                     Unix Socket
 | `localPort` | number | ssh only | Local TCP port for SSH forward |
 | `sshPort` | number | ssh only | SSH server port (omit = default 22) |
 
+**Global config (top-level):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `k11Mode` | `"all"` \| `"active"` | `"all"` | K11 ALL button mode. `"all"` shows all agents; `"active"` filters to only BLOCKED/WORKING/DONE |
+
 ### 1.2 Protocols
 
 | Connection | Protocol |
@@ -121,9 +127,9 @@ row2:  K11    K12    K13    [K14  wide]    ← Navigation + stats
 | Key | Function | Description |
 |-----|----------|-------------|
 | K1-K10 | Agent status | Top 10 agents by priority. BLOCKED > DONE > WORKING > IDLE > UNKNOWN |
-| K11 | ALL mode | Show agents from all machines. Active=blue, inactive=gray |
+| K11 | ALL mode | Show all agents (all) or only BLOCKED/WORKING/DONE (active). Active=blue, inactive=gray. Mode set via `k11Mode` in config |
 | K12 | Machine cycle | Switch to next machine (LCL→DEV→PRD→…). Clears space filter |
-| K13 | Space cycle | Switch spaces within current machine. No-op in ALL mode |
+| K13 | Space cycle | Switch to next workspace globally (all machines). Clears machine filter. Label-based matching |
 | K14 | Global stats | Cross-machine agent counts (D/I/W/B/?) |
 
 ### 2.2 Encoder Knobs
@@ -187,13 +193,13 @@ row2:  K11    K12    K13    [K14  wide]    ← Navigation + stats
 
 ### 3.2 Navigation Keys (K11-K13)
 
-**K11 — ALL:**
+**K11 — ALL / ACT:**
 
 ```
 ┌──────────┐
 │          │
-│   ALL    │  ← 36px BOLD white, blue bg (active) / gray bg (inactive)
-│          │
+│   ALL    │  ← 36px BOLD white, blue bg when active, gray when inactive
+│   /ACT   │  Label = "ALL" (k11Mode=all) or "ACT" (k11Mode=active)
 └──────────┘
 ```
 
@@ -206,7 +212,7 @@ row2:  K11    K12    K13    [K14  wide]    ← Navigation + stats
 └──────────┘
 ```
 
-**K13 — Space cycle:**
+**K13 — Space cycle (global):**
 
 ```
 ┌──────────┐
@@ -215,6 +221,8 @@ row2:  K11    K12    K13    [K14  wide]    ← Navigation + stats
 │    WS    │  ← small hint
 └──────────┘
 ```
+
+Space filter matches by workspace **label** (not per-machine UUID), so the same project on different machines is grouped together. Cycles through all unique workspace labels across all connected machines. Pressing K13 clears the machine filter (K12).
 
 ### 3.3 Global Stats (K14 — wide key)
 
@@ -246,7 +254,7 @@ SVG example:
 
 | Mode | K11(ALL) | K12(Machine) | K13(Space) | Content |
 |------|----------|-------------|------------|---------|
-| ALL | Blue highlight | Gray | Gray | All machines, top 10 |
+| ALL | Blue highlight (ALL/ACT) | Gray | Gray | All machines, top 10 (k11Mode=active filters idle+unknown) |
 | Machine | — | Machine color bg | Gray | That machine's top 10 |
 | Space | — | Machine color bg | Space name | Machine + space top 10 |
 

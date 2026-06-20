@@ -28,9 +28,9 @@ const (
 type Mapper struct {
 	state    *state.Manager
 	Mode     FilterMode
-	ConnName string  // current machine filter
-	WsLabel  string  // current space label filter (not wsID — labels match across machines)
-	K11Mode  string  // "all" or "active"
+	ConnName string // current machine filter
+	WsLabel  string // current space label filter (not wsID — labels match across machines)
+	K11Mode  string // "all" or "active"
 }
 
 // New creates a Mapper in ALL mode.
