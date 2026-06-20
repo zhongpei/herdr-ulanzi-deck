@@ -245,7 +245,19 @@ func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
 		return f, nil
 	}
 	family := canvas.NewFontFamily("sans-serif")
-	if err := family.LoadSystemFont("sans-serif", style); err != nil {
+	// Load multiple fonts so glyph fallback covers both Latin text and
+	// Unicode symbols (✓ ‖ ↻ ⚠). Apple Symbols covers U+21BB, U+26A0, etc.
+	fontNames := []string{
+		"sans-serif", "Helvetica", "Arial", "Arial Unicode MS", "Apple Symbols",
+	}
+	loaded := false
+	for _, name := range fontNames {
+		if err := family.LoadSystemFont(name, style); err == nil {
+			loaded = true
+			break
+		}
+	}
+	if !loaded {
 		for _, name := range []string{"Helvetica", "Arial", "Liberation Sans"} {
 			if err := family.LoadSystemFont(name, style); err == nil {
 				break
@@ -260,7 +272,17 @@ func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
 // loadFontWithColor creates a new font face with the specified fill color, uncached.
 func loadFontWithColor(size float64, style canvas.FontStyle, fill color.Color) *canvas.FontFace {
 	family := canvas.NewFontFamily("sans-serif")
-	if err := family.LoadSystemFont("sans-serif", style); err != nil {
+	fontNames := []string{
+		"sans-serif", "Helvetica", "Arial", "Arial Unicode MS", "Apple Symbols",
+	}
+	loaded := false
+	for _, name := range fontNames {
+		if err := family.LoadSystemFont(name, style); err == nil {
+			loaded = true
+			break
+		}
+	}
+	if !loaded {
 		for _, name := range []string{"Helvetica", "Arial", "Liberation Sans"} {
 			if err := family.LoadSystemFont(name, style); err == nil {
 				break
