@@ -3,3 +3,4 @@ UlanziDeckPlugin-SDK/
 herdr/
 *.log
 .DS_Store
+go/
