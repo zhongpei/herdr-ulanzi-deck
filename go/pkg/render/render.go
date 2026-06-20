@@ -94,8 +94,8 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
   %[10]s
   <text x="100" y="140" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="26" font-weight="700">%[11]s</text>
-  <text x="55" y="185" text-anchor="start" fill="white"
-        font-family="sans-serif" font-size="18" font-weight="700">%[12]s</text>
+  <text x="55" y="190" text-anchor="start" fill="white"
+        font-family="sans-serif" font-size="20" font-weight="700">%[12]s</text>
 </svg>`,
 			statusColor,
 			agentColor,
@@ -130,8 +130,8 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
         font-family="sans-serif" font-size="22" font-weight="700">%[11]s</text>
   <text x="100" y="160" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="22" font-weight="700">%[12]s</text>
-  <text x="55" y="185" text-anchor="start" fill="white"
-        font-family="sans-serif" font-size="18" font-weight="700">%[13]s</text>
+  <text x="55" y="190" text-anchor="start" fill="white"
+        font-family="sans-serif" font-size="20" font-weight="700">%[13]s</text>
 </svg>`,
 			statusColor,
 			agentColor,
