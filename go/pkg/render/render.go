@@ -270,16 +270,17 @@ func (r *Renderer) RenderStatsKey(d types.StatsData) string {
 	}
 
 	// CPU/MEM row at top: "CPU 45%    MEM 62%" (3+ spaces between blocks)
-	// Larger font: labels 15pt, values 20pt. CPU block left at x=185, MEM
-	// block at x=290 so the gap is always ≥20px even with "100%" values.
+	// Font: labels 20pt bold white, values 24pt bold colored (approaching the
+	// 28pt stats-bar font below). Within each pair, label and value are separated
+	// by ~10px (1-2 spaces). Between CPU and MEM blocks, gap is ≥18px (3 spaces).
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="185" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="15" font-weight="800">CPU</text>`))
+	inner.WriteString(fmt.Sprintf(`<text x="110" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="20" font-weight="800">CPU</text>`))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="218" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="20" font-weight="800">%s</text>`, cpuCol, cpuPct))
+	inner.WriteString(fmt.Sprintf(`<text x="171" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="24" font-weight="800">%s</text>`, cpuCol, cpuPct))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="290" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="15" font-weight="800">MEM</text>`))
+	inner.WriteString(fmt.Sprintf(`<text x="261" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="20" font-weight="800">MEM</text>`))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="325" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="20" font-weight="800">%s</text>`, memCol, memPct))
+	inner.WriteString(fmt.Sprintf(`<text x="322" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="24" font-weight="800">%s</text>`, memCol, memPct))
 
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">%s
 </svg>`, inner.String())
