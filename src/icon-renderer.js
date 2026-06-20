@@ -157,7 +157,8 @@ export class IconRenderer {
 		return this.toDataUri(svg);
 	}
 
-	// ─── Stats bar (K14 - wide) ──────────────────────────────────
+	// ─── Stats bar (K14 - wide key) ──────────────────────────────
+	// Compact colored stats on the right side; clock visible on the left
 	renderStatsKey(stats) {
 		const items = [
 			{ label: "D", count: stats.done, color: "#27AE60" },
@@ -167,18 +168,20 @@ export class IconRenderer {
 			{ label: "?", count: stats.unknown, color: "#95A5A6" },
 		];
 
+		// Build compact right-aligned items
 		let inner = "";
-		const spacing = 400 / items.length;
-		items.forEach((item, i) => {
-			const cx = spacing * i + spacing / 2;
+		let x = 380;
+		const step = 52;
+		for (let i = items.length - 1; i >= 0; i--) {
+			const item = items[i];
+			if (item.count === 0 && item.label !== "D") continue;
 			inner += `
-  <text x="${cx}" y="115" text-anchor="middle" font-size="38">${item.label}</text>
-  <text x="${cx}" y="165" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="30" font-weight="700">${item.count}</text>`;
-		});
+  <text x="${x}" y="185" text-anchor="end" fill="${item.color}"
+        font-family="sans-serif" font-size="28" font-weight="800">${item.label}${item.count}</text>`;
+			x -= step;
+		}
 
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
-  <rect width="400" height="200" rx="8" fill="#1a1a1a" opacity="0.9"/>
   ${inner}
 </svg>`;
 

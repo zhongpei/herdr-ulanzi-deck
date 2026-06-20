@@ -141,21 +141,21 @@ export class DeckClient {
 	}
 
 	// Render a key with base64 image (SVG → PNG via sharp)
-	async setKeyImage(key, base64SvgData) {
+	// wide=true for the large key at 3_2 (spans 2 columns)
+	async setKeyImage(key, base64SvgData, wide) {
 		const actionid = this.keyActions.get(key) || "";
+		const w = wide ? 392 : 196;
+		const h = 196;
 
 		try {
-			// Convert SVG data URI → PNG buffer
 			const svgBase64 = base64SvgData.replace(
 				/^data:image\/svg\+xml;base64,/,
 				"",
 			);
 			const svgBuffer = Buffer.from(svgBase64, "base64");
 			const pngBuffer = await sharp(svgBuffer)
-				.resize(196, 196, {
-					fit: "contain",
-					background: { r: 0, g: 0, b: 0, alpha: 0 },
-				})
+				.resize(w, h, { fit: "fill" })
+				.flatten({ background: { r: 0, g: 0, b: 0 } })
 				.png()
 				.toBuffer();
 			const pngBase64 = `data:image/png;base64,${pngBuffer.toString("base64")}`;

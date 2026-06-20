@@ -156,7 +156,8 @@ async function renderAll(mapper, renderer, deck) {
 		const physKey = physicalKeyForDescriptor(kd.keyId);
 
 		if (deck && deck.connected && kd.type !== "empty") {
-			promises.push(deck.setKeyImage(physKey, svg));
+			const isWide = physKey === "3_2";
+			promises.push(deck.setKeyImage(physKey, svg, isWide));
 		}
 
 		// Debug output to console
