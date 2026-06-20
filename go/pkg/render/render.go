@@ -72,6 +72,8 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 		wsLine1 = truncate(wsLabel, 12)
 	}
 
+	durStr := escapeXML(d.StatusDuration)
+
 	var svg string
 	if !useTwoLine {
 		svg = fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
@@ -92,6 +94,8 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
   %[10]s
   <text x="100" y="140" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="26" font-weight="700">%[11]s</text>
+  <text x="55" y="185" text-anchor="start" fill="white"
+        font-family="sans-serif" font-size="14" font-weight="700">%[12]s</text>
 </svg>`,
 			statusColor,
 			agentColor,
@@ -103,6 +107,7 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 			displayAlias,
 			statusIcon,
 			wsLine1,
+			durStr,
 		)
 	} else {
 		svg = fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
@@ -125,6 +130,8 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
         font-family="sans-serif" font-size="22" font-weight="700">%[11]s</text>
   <text x="100" y="160" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="22" font-weight="700">%[12]s</text>
+  <text x="55" y="185" text-anchor="start" fill="white"
+        font-family="sans-serif" font-size="14" font-weight="700">%[13]s</text>
 </svg>`,
 			statusColor,
 			agentColor,
@@ -137,6 +144,7 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 			statusIcon,
 			wsLine1,
 			wsLine2,
+			durStr,
 		)
 	}
 

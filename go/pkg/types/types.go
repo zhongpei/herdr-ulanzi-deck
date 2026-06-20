@@ -109,6 +109,7 @@ type AgentKeyData struct {
 	ConnAbbr      string `json:"connAbbr"`
 	ConnAbbrColor string `json:"connAbbrColor"`
 	WsLabel       string `json:"wsLabel"`
+	StatusDuration string `json:"statusDuration"` // formatted: "45m", "1h02m", "2d"
 }
 
 // NavAllData describes the K11 ALL button with system stats overlay.

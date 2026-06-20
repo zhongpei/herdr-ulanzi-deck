@@ -110,17 +110,18 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 			a := agents[i]
 			keys = append(keys, types.KeyCommand{
 				Agent: &types.AgentKeyData{
-					KeyID:         "agent_" + itoa(i),
-					Type:          "agent",
-					AgentType:     a.Agent,
-					Alias:         coalesce(a.Name, a.TabLabel, a.Agent, ""),
-					Status:        string(a.AgentStatus),
-					Focused:       a.Focused,
-					PaneID:        a.PaneID,
-					ConnName:      a.ConnName,
-					ConnAbbr:      a.ConnAbbr,
-					ConnAbbrColor: a.ConnAbbrColor,
-					WsLabel:       a.WsLabel,
+					KeyID:          "agent_" + itoa(i),
+					Type:           "agent",
+					AgentType:      a.Agent,
+					Alias:          coalesce(a.Name, a.TabLabel, a.Agent, ""),
+					Status:         string(a.AgentStatus),
+					Focused:        a.Focused,
+					PaneID:         a.PaneID,
+					ConnName:       a.ConnName,
+					ConnAbbr:       a.ConnAbbr,
+					ConnAbbrColor:  a.ConnAbbrColor,
+					WsLabel:        a.WsLabel,
+					StatusDuration: m.state.FormatAgentDuration(a.ConnName, a.PaneID),
 				},
 			})
 		} else {

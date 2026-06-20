@@ -3,7 +3,9 @@
 package state
 
 import (
+	"fmt"
 	"sort"
+	"time"
 
 	"github.com/herdr-deck/herdrdeck/pkg/types"
 )
@@ -17,20 +19,88 @@ type Manager struct {
 	cpuPercent    float64
 	memoryPercent float64
 	listeners     []func(event string, data any)
+	statusSince   map[string]time.Time // "connName|paneID" → when current status started
 }
 
 // NewManager creates an empty state manager.
 func NewManager() *Manager {
 	return &Manager{
-		unified:   nil,
-		listeners: nil,
+		unified:     nil,
+		listeners:   nil,
+		statusSince: make(map[string]time.Time),
 	}
 }
 
 // Init replaces the unified workspace list and notifies.
+// Tracks status change timestamps so FormatAgentDuration can report how long
+// each agent has been in its current status.
 func (m *Manager) Init(unified []types.UnifiedWorkspace) {
+	now := time.Now()
+	old := m.buildAgentStatusMap() // connName|paneID → old status
+
+	for _, ws := range unified {
+		for _, a := range ws.Agents {
+			key := a.ConnName + "|" + a.PaneID
+			oldStatus, exists := old[key]
+			if !exists || string(oldStatus) != string(a.AgentStatus) {
+				// New agent or status changed → reset timer
+				m.statusSince[key] = now
+			} // else: status unchanged → keep original start time
+			delete(old, key) // marked as seen
+		}
+	}
+
+	// Remove stale entries (agents that no longer exist in any workspace)
+	for key := range old {
+		delete(m.statusSince, key)
+	}
+
 	m.unified = unified
 	m.notify("stateChanged", nil)
+}
+
+// buildAgentStatusMap returns connName|paneID → current status for all agents.
+func (m *Manager) buildAgentStatusMap() map[string]types.AgentStatus {
+	result := make(map[string]types.AgentStatus)
+	for _, ws := range m.unified {
+		for _, a := range ws.Agents {
+			key := a.ConnName + "|" + a.PaneID
+			result[key] = a.AgentStatus
+		}
+	}
+	return result
+}
+
+// FormatAgentDuration returns a human-readable duration string for how long
+// an agent has been in its current status. Returns empty string if < 1 minute.
+func (m *Manager) FormatAgentDuration(connName, paneID string) string {
+	key := connName + "|" + paneID
+	since, ok := m.statusSince[key]
+	if !ok {
+		return ""
+	}
+	d := time.Since(since)
+	if d < time.Minute {
+		return ""
+	}
+	return formatDuration(d)
+}
+
+// formatDuration formats a duration for display on agent keys.
+// Examples: "3m", "45m", "1h02m", "2d"
+func formatDuration(d time.Duration) string {
+	totalMin := int(d.Minutes())
+	if totalMin < 60 {
+		return fmt.Sprintf("%dm", totalMin)
+	}
+	hours := totalMin / 60
+	mins := totalMin % 60
+	if hours < 24 {
+		return fmt.Sprintf("%dh%02dm", hours, mins)
+	}
+	days := hours / 24
+	hours = hours % 24
+	return fmt.Sprintf("%dd%dh", days, hours)
 }
 
 // GetAllAgents flattens all workspaces into a single agent list with enriched metadata.

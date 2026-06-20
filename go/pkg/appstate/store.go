@@ -81,6 +81,7 @@ type Snapshot struct {
 	Stats         types.AgentStats
 	CPUPercent    float64
 	MemoryPercent float64
+	durationFP    string // fingerprint of per-agent status durations
 	hash          string
 }
 
@@ -96,6 +97,13 @@ func (s *Store) Capture() *Snapshot {
 		CPUPercent:    cpu,
 		MemoryPercent: mem,
 	}
+	// Build per-agent duration fingerprint so hash catches minute-level changes
+	var durFP string
+	for _, a := range snap.TopAgents {
+		d := s.sm.FormatAgentDuration(a.ConnName, a.PaneID)
+		durFP += a.PaneID + "=" + d + "|"
+	}
+	snap.durationFP = durFP
 	snap.hash = snap.visualHash()
 	return snap
 }
@@ -148,6 +156,7 @@ func (s *Snapshot) visualHash() string {
 	cpuStr := fmt.Sprintf("%.1f", s.CPUPercent)
 	memStr := fmt.Sprintf("%.1f", s.MemoryPercent)
 	fp += "CPU" + cpuStr + "|MEM" + memStr
+	fp += "|DUR|" + s.durationFP
 	return fp
 }
 
