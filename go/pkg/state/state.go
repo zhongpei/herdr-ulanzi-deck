@@ -72,16 +72,17 @@ func (m *Manager) buildAgentStatusMap() map[string]types.AgentStatus {
 }
 
 // FormatAgentDuration returns a human-readable duration string for how long
-// an agent has been in its current status. Returns empty string if < 1 minute.
+// an agent has been in its current status. Shows "0m" for < 1 minute so the
+// user can see the display is live immediately.
 func (m *Manager) FormatAgentDuration(connName, paneID string) string {
 	key := connName + "|" + paneID
 	since, ok := m.statusSince[key]
 	if !ok {
-		return ""
+		return "0m"
 	}
 	d := time.Since(since)
 	if d < time.Minute {
-		return ""
+		return "0m"
 	}
 	return formatDuration(d)
 }

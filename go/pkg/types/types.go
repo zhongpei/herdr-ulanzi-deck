@@ -98,17 +98,17 @@ type AgentStats struct {
 
 // AgentKeyData describes a single agent key (K1-K10) render command.
 type AgentKeyData struct {
-	KeyID         string `json:"keyId"`
-	Type          string `json:"type"`
-	AgentType     string `json:"agentType"`
-	Alias         string `json:"alias"`
-	Status        string `json:"status"`
-	Focused       bool   `json:"focused"`
-	PaneID        string `json:"paneId"`
-	ConnName      string `json:"connName"`
-	ConnAbbr      string `json:"connAbbr"`
-	ConnAbbrColor string `json:"connAbbrColor"`
-	WsLabel       string `json:"wsLabel"`
+	KeyID          string `json:"keyId"`
+	Type           string `json:"type"`
+	AgentType      string `json:"agentType"`
+	Alias          string `json:"alias"`
+	Status         string `json:"status"`
+	Focused        bool   `json:"focused"`
+	PaneID         string `json:"paneId"`
+	ConnName       string `json:"connName"`
+	ConnAbbr       string `json:"connAbbr"`
+	ConnAbbrColor  string `json:"connAbbrColor"`
+	WsLabel        string `json:"wsLabel"`
 	StatusDuration string `json:"statusDuration"` // formatted: "45m", "1h02m", "2d"
 }
 
