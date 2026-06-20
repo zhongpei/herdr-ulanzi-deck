@@ -47,25 +47,16 @@ func AgentIcons() map[string]string {
 	}
 }
 
-// StatusIcons returns SVG path strings for each status indicator.
-// All icons use a 20×20 viewBox, white stroke, stroke-width 3.
-// Caller positions them with a <g transform="translate(x,y)"> wrapper.
+// StatusIcons returns SVG inner content for each status indicator.
+// Uses Unicode characters rendered as <text> (compatible with the canvas
+// SVG parser which only handles <rect> and <text>).
+// Caller wraps in a <text> element positioned at top-left of the key.
 func StatusIcons() map[string]string {
 	return map[string]string{
-		// DONE — checkmark
-		"done": `<path d="M3 11 L8 16 L17 5" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`,
-		// IDLE — two pause bars
-		"idle": `<line x1="6" y1="3" x2="6" y2="17" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
-             <line x1="14" y1="3" x2="14" y2="17" stroke="white" stroke-width="3.5" stroke-linecap="round"/>`,
-		// WORKING — 3/4 spinning arc
-		"working": `<path d="M17 10 A7 7 0 1 1 10 3" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
-                <path d="M10 0 L10 4 L14 2 Z" fill="white"/>`,
-		// BLOCKED — warning triangle with exclamation
-		"blocked": `<path d="M10 2 L18 17 L2 17 Z" fill="none" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>
-                <line x1="10" y1="8" x2="10" y2="12" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-                <circle cx="10" cy="15" r="1" fill="white"/>`,
-		// UNKNOWN — question mark
-		"unknown": `<path d="M6 7 Q6 3 10 3 Q14 3 14 7 Q14 9 10 11 L10 13" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  <circle cx="10" cy="16.5" r="1" fill="white"/>`,
+		"done":    "✓",
+		"idle":    "‖",
+		"working": "↻",
+		"blocked": "⚠",
+		"unknown": "?",
 	}
 }
