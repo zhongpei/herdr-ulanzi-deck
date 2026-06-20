@@ -82,7 +82,7 @@ func (b *Bridge) FocusAgent(connName, paneID string) {
 }
 
 // fetchConn queries a single connection.
-// herdr returns {"result":{"workspaces":[...],"agents":[...]}}
+// herdr returns {"result":{"workspaces":[...],"agents":[...],"tabs":[...]}}
 // The client returns the "result" portion, so we need to unwrap the nested keys.
 func (b *Bridge) fetchConn(conn ConnRef) ([]types.WorkspaceInfo, []types.AgentInfo, error) {
 	wsRaw, err := conn.Client.ListWorkspaces()
@@ -92,6 +92,10 @@ func (b *Bridge) fetchConn(conn ConnRef) ([]types.WorkspaceInfo, []types.AgentIn
 	agRaw, err := conn.Client.ListAgents()
 	if err != nil {
 		return nil, nil, fmt.Errorf("agent.list: %w", err)
+	}
+	tabRaw, err := conn.Client.ListTabs()
+	if err != nil {
+		return nil, nil, fmt.Errorf("tab.list: %w", err)
 	}
 
 	// Result is {"workspaces": [...]}, unwrap the array
@@ -108,6 +112,28 @@ func (b *Bridge) fetchConn(conn ConnRef) ([]types.WorkspaceInfo, []types.AgentIn
 	}
 	if err := json.Unmarshal(agRaw, &agObj); err != nil {
 		return nil, nil, fmt.Errorf("parse agents: %w", err)
+	}
+
+	// Result is {"tabs": [...]}, build tab_id → label map
+	var tabObj struct {
+		Tabs []struct {
+			TabID string `json:"tab_id"`
+			Label string `json:"label"`
+		} `json:"tabs"`
+	}
+	if err := json.Unmarshal(tabRaw, &tabObj); err != nil {
+		return nil, nil, fmt.Errorf("parse tabs: %w", err)
+	}
+	tabLabels := make(map[string]string, len(tabObj.Tabs))
+	for _, t := range tabObj.Tabs {
+		tabLabels[t.TabID] = t.Label
+	}
+
+	// Enrich agents with tab label
+	for i := range agObj.Agents {
+		if label, ok := tabLabels[agObj.Agents[i].TabID]; ok {
+			agObj.Agents[i].TabLabel = label
+		}
 	}
 
 	return wsObj.Workspaces, agObj.Agents, nil

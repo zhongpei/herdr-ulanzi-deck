@@ -113,7 +113,7 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 					KeyID:         "agent_" + itoa(i),
 					Type:          "agent",
 					AgentType:     a.Agent,
-					Alias:         coalesce(a.Name, a.Agent, ""),
+					Alias:         coalesce(a.Name, a.TabLabel, a.Agent, ""),
 					Status:        string(a.AgentStatus),
 					Focused:       a.Focused,
 					PaneID:        a.PaneID,

@@ -43,6 +43,7 @@ type AgentInfo struct {
 	ConnAbbrColor string `json:"conn_abbr_color,omitempty"`
 	WsLabel       string `json:"ws_label,omitempty"`
 	WsID          string `json:"ws_id,omitempty"`
+	TabLabel      string `json:"tab_label,omitempty"`
 }
 
 // WorkspaceInfo holds a single workspace returned by herdr workspace.list.
