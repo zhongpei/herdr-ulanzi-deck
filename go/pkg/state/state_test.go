@@ -109,13 +109,14 @@ func TestGetFilteredAgents_SpaceFilter(t *testing.T) {
 	m := NewManager()
 	m.Init(buildTestData())
 
-	agents := m.GetFilteredAgents("local", "ws-1")
+	// Space filter uses Label (workspace name), not wsID
+	agents := m.GetFilteredAgents("local", "main-proj")
 	if len(agents) != 3 {
-		t.Fatalf("expected 3 agents in ws-1, got %d", len(agents))
+		t.Fatalf("expected 3 agents for 'main-proj', got %d", len(agents))
 	}
 	for _, a := range agents {
-		if a.WorkspaceID != "ws-1" {
-			t.Errorf("expected ws-1 only, got %s", a.WorkspaceID)
+		if a.WsLabel != "main-proj" {
+			t.Errorf("expected WsLabel 'main-proj', got '%s'", a.WsLabel)
 		}
 	}
 }
@@ -455,34 +456,34 @@ func TestGetAllSpaces(t *testing.T) {
 		t.Fatalf("expected 3 unique spaces, got %d", len(spaces))
 	}
 	// Order should match first occurrence in unified
-	if spaces[0].WsID != "ws-1" || spaces[0].Label != "main-proj" {
-		t.Errorf("first space: expected ws-1/main-proj, got %s/%s", spaces[0].WsID, spaces[0].Label)
+	if spaces[0].Label != "main-proj" {
+		t.Errorf("first space: expected label 'main-proj', got '%s'", spaces[0].Label)
 	}
-	if spaces[1].WsID != "ws-2" || spaces[1].Label != "web-app" {
-		t.Errorf("second space: expected ws-2/web-app, got %s/%s", spaces[1].WsID, spaces[1].Label)
+	if spaces[1].Label != "web-app" {
+		t.Errorf("second space: expected label 'web-app', got '%s'", spaces[1].Label)
 	}
-	if spaces[2].WsID != "ws-3" || spaces[2].Label != "backend" {
-		t.Errorf("third space: expected ws-3/backend, got %s/%s", spaces[2].WsID, spaces[2].Label)
+	if spaces[2].Label != "backend" {
+		t.Errorf("third space: expected label 'backend', got '%s'", spaces[2].Label)
 	}
 }
 
 func TestGetAllSpaces_Dedup(t *testing.T) {
 	m := NewManager()
-	// Two workspaces with same wsID but on different machines
+	// Two workspaces with same label on different machines (different wsID)
 	data := []types.UnifiedWorkspace{
-		{ConnName: "local", ConnAbbr: "LCL", WorkspaceID: "ws-shared", Label: "shared"},
-		{ConnName: "remote", ConnAbbr: "REM", WorkspaceID: "ws-shared", Label: "shared"},
-		{ConnName: "remote", ConnAbbr: "REM", WorkspaceID: "ws-other", Label: "other"},
+		{ConnName: "local", ConnAbbr: "LCL", WorkspaceID: "uuid-a", Label: "shared"},
+		{ConnName: "remote", ConnAbbr: "REM", WorkspaceID: "uuid-b", Label: "shared"},
+		{ConnName: "remote", ConnAbbr: "REM", WorkspaceID: "uuid-c", Label: "other"},
 	}
 	m.Init(data)
 
 	spaces := m.GetAllSpaces()
 	if len(spaces) != 2 {
-		t.Fatalf("expected 2 unique spaces (dedup ws-shared), got %d", len(spaces))
+		t.Fatalf("expected 2 unique spaces (dedup by label), got %d", len(spaces))
 	}
-	// First occurrence of ws-shared (local) should be kept
-	if spaces[0].WsID != "ws-shared" {
-		t.Errorf("expected first space 'ws-shared', got '%s'", spaces[0].WsID)
+	// First occurrence of label "shared" (local) should be kept
+	if spaces[0].Label != "shared" {
+		t.Errorf("expected first space label 'shared', got '%s'", spaces[0].Label)
 	}
 }
 
@@ -492,22 +493,20 @@ func TestGetFilteredAgents_GlobalSpaceFilter_IgnoresMachine(t *testing.T) {
 	m := NewManager()
 	m.Init(buildTestData())
 
-	// Old behavior: GetFilteredAgents("local", "ws-1") meant local ∩ ws-1
-	// New: ignores machine filter when space filter is active
-	agents := m.GetFilteredAgents("local", "ws-1")
-	// ws-1 only exists on local machine, so same 3 agents
+	// Space filter by label ignores machine arg
+	agents := m.GetFilteredAgents("local", "main-proj")
+	// main-proj only exists on local machine, so same 3 agents
 	if len(agents) != 3 {
-		t.Fatalf("expected 3 agents for ws-1, got %d", len(agents))
+		t.Fatalf("expected 3 agents for 'main-proj', got %d", len(agents))
 	}
-	// All should have WorkspaceID ws-1 (not necessarily local anymore, but in this case they are)
 	for _, a := range agents {
-		if a.WsID != "ws-1" {
-			t.Errorf("expected ws-1, got %s", a.WsID)
+		if a.WsLabel != "main-proj" {
+			t.Errorf("expected WsLabel 'main-proj', got '%s'", a.WsLabel)
 		}
 	}
 }
 
-// buildTestDataWithSharedWS returns data where the same wsID exists on multiple machines.
+// buildTestDataWithSharedWS returns data where the same label exists on multiple machines.
 func buildTestDataWithSharedWS() []types.UnifiedWorkspace {
 	return []types.UnifiedWorkspace{
 		{
@@ -539,8 +538,8 @@ func TestGetFilteredAgents_GlobalSpaceFilter_AcrossMachines(t *testing.T) {
 	m := NewManager()
 	m.Init(buildTestDataWithSharedWS())
 
-	// Space filter should return agents from ALL machines with matching wsID
-	agents := m.GetFilteredAgents("", "ws-shared")
+	// Space filter by label returns agents from ALL machines with that label
+	agents := m.GetFilteredAgents("", "shared-proj")
 	if len(agents) != 3 {
 		t.Fatalf("expected 3 agents from ws-shared across both machines, got %d", len(agents))
 	}
@@ -568,9 +567,9 @@ func TestGetFilteredAgents_GlobalSpaceFilter_WithMachineArgIgnored(t *testing.T)
 	m.Init(buildTestDataWithSharedWS())
 
 	// When space filter is active, the machine argument is ignored
-	// Both of these should return the same 3 agents from ws-shared
-	agentsWithMachine := m.GetFilteredAgents("local", "ws-shared")
-	agentsWithout := m.GetFilteredAgents("", "ws-shared")
+	// Both of these should return the same 3 agents from shared-proj
+	agentsWithMachine := m.GetFilteredAgents("local", "shared-proj")
+	agentsWithout := m.GetFilteredAgents("", "shared-proj")
 	if len(agentsWithMachine) != len(agentsWithout) {
 		t.Errorf("machine arg should be ignored: got %d vs %d", len(agentsWithMachine), len(agentsWithout))
 	}
@@ -622,9 +621,9 @@ func TestGetFilteredAgents_K11ModeActive_WithSpaceFilter(t *testing.T) {
 	m.Init(buildTestData())
 	m.SetK11Mode("active")
 
-	// ws-1 has: 1 working, 1 blocked, 1 idle
+	// main-proj has: 1 working, 1 blocked, 1 idle
 	// idle filtered out → 2 remaining
-	agents := m.GetFilteredAgents("", "ws-1")
+	agents := m.GetFilteredAgents("", "main-proj")
 	if len(agents) != 2 {
 		t.Fatalf("expected 2 agents in ws-1 (without idle), got %d", len(agents))
 	}

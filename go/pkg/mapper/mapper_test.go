@@ -55,8 +55,8 @@ func TestSetAll(t *testing.T) {
 	if m.ConnName != "" {
 		t.Errorf("expected empty ConnName, got %s", m.ConnName)
 	}
-	if m.WsID != "" {
-		t.Errorf("expected empty WsID, got %s", m.WsID)
+	if m.WsLabel != "" {
+		t.Errorf("expected empty WsLabel, got %s", m.WsLabel)
 	}
 }
 
@@ -93,13 +93,13 @@ func TestNextMachine_Wraps(t *testing.T) {
 func TestNextMachine_ClearsSpace(t *testing.T) {
 	m := buildTestManager()
 	m.NextMachine() // → local
-	m.NextSpace()   // → ws-1, clears ConnName
+	m.NextSpace()   // → main-proj, clears ConnName
 	m.NextMachine() // ConnName empty, picks first machine = local
 	if m.Mode != ModeMachine {
 		t.Errorf("expected ModeMachine, got %v", m.Mode)
 	}
-	if m.WsID != "" {
-		t.Errorf("expected WsID cleared, got %s", m.WsID)
+	if m.WsLabel != "" {
+		t.Errorf("expected WsLabel cleared, got %s", m.WsLabel)
 	}
 	if m.ConnName != "local" {
 		t.Errorf("expected ConnName 'local', got %s", m.ConnName)
@@ -123,8 +123,8 @@ func TestNextSpace_FromMachine(t *testing.T) {
 	if m.Mode != ModeSpace {
 		t.Errorf("expected ModeSpace, got %v", m.Mode)
 	}
-	if m.WsID != "ws-1" {
-		t.Errorf("expected first space 'ws-1', got %s", m.WsID)
+	if m.WsLabel != "main-proj" {
+		t.Errorf("expected first space label 'main-proj', got '%s'", m.WsLabel)
 	}
 	if m.ConnName != "" {
 		t.Errorf("expected empty ConnName (global space), got %s", m.ConnName)
@@ -134,22 +134,22 @@ func TestNextSpace_FromMachine(t *testing.T) {
 func TestNextSpace_Cycle(t *testing.T) {
 	m := buildTestManager()
 	m.NextMachine() // → local
-	m.NextSpace()   // → ws-1
-	m.NextSpace()   // → ws-2
-	if m.WsID != "ws-2" {
-		t.Errorf("expected 'ws-2', got %s", m.WsID)
+	m.NextSpace()   // → main-proj
+	m.NextSpace()   // → web-app
+	if m.WsLabel != "web-app" {
+		t.Errorf("expected label 'web-app', got '%s'", m.WsLabel)
 	}
 }
 
 func TestNextSpace_Wraps(t *testing.T) {
 	m := buildTestManager()
-	m.NextMachine() // → local (3 global spaces)
-	m.NextSpace()   // → ws-1
-	m.NextSpace()   // → ws-2
-	m.NextSpace()   // → ws-3
-	m.NextSpace()   // wraps → ws-1
-	if m.WsID != "ws-1" {
-		t.Errorf("expected wrap to 'ws-1', got %s", m.WsID)
+	m.NextMachine() // → local (3 global labels: main-proj, web-app, backend)
+	m.NextSpace()   // → main-proj
+	m.NextSpace()   // → web-app
+	m.NextSpace()   // → backend
+	m.NextSpace()   // wraps → main-proj
+	if m.WsLabel != "main-proj" {
+		t.Errorf("expected wrap to 'main-proj', got '%s'", m.WsLabel)
 	}
 }
 
@@ -159,8 +159,8 @@ func TestNextSpace_FromAllMode(t *testing.T) {
 	if m.Mode != ModeSpace {
 		t.Errorf("expected ModeSpace, got %v", m.Mode)
 	}
-	if m.WsID != "ws-1" {
-		t.Errorf("expected first space 'ws-1', got %s", m.WsID)
+	if m.WsLabel != "main-proj" {
+		t.Errorf("expected first space label 'main-proj', got '%s'", m.WsLabel)
 	}
 	if m.ConnName != "" {
 		t.Errorf("expected empty ConnName, got %s", m.ConnName)
@@ -224,7 +224,7 @@ func TestRenderAll_FilteredCount(t *testing.T) {
 func TestRenderAll_SpaceFilterCount(t *testing.T) {
 	m := buildTestManager()
 	m.NextMachine() // → local
-	m.NextSpace()   // → ws-1 (3 agents)
+	m.NextSpace()   // → main-proj (3 agents)
 	keys := m.RenderAll()
 	agentCount := 0
 	for i := 0; i < 10; i++ {
@@ -233,7 +233,7 @@ func TestRenderAll_SpaceFilterCount(t *testing.T) {
 		}
 	}
 	if agentCount != 3 {
-		t.Errorf("expected 3 agents for ws-1, got %d", agentCount)
+		t.Errorf("expected 3 agents for 'main-proj', got %d", agentCount)
 	}
 }
 
@@ -323,28 +323,28 @@ func TestNextSpace_Global_SharedWorkspaceAcrossMachines(t *testing.T) {
 	if m.Mode != ModeSpace {
 		t.Errorf("expected ModeSpace, got %v", m.Mode)
 	}
-	// First space in global order: "ws-shared" appears first in unified slice
-	if m.WsID != "ws-shared" {
-		t.Errorf("expected first space 'ws-shared', got '%s'", m.WsID)
+	// First space label in global order: "shared-proj" appears first
+	if m.WsLabel != "shared-proj" {
+		t.Errorf("expected first space label 'shared-proj', got '%s'", m.WsLabel)
 	}
 	if m.ConnName != "" {
 		t.Errorf("expected empty ConnName, got '%s'", m.ConnName)
 	}
-	// NextSpace → ws-other
+	// NextSpace → other
 	m.NextSpace()
-	if m.WsID != "ws-other" {
-		t.Errorf("expected 'ws-other', got '%s'", m.WsID)
+	if m.WsLabel != "other" {
+		t.Errorf("expected label 'other', got '%s'", m.WsLabel)
 	}
-	// NextSpace wraps → ws-shared
+	// NextSpace wraps → shared-proj
 	m.NextSpace()
-	if m.WsID != "ws-shared" {
-		t.Errorf("expected wrap to 'ws-shared', got '%s'", m.WsID)
+	if m.WsLabel != "shared-proj" {
+		t.Errorf("expected wrap to 'shared-proj', got '%s'", m.WsLabel)
 	}
 }
 
 func TestRenderAll_GlobalSpaceFilter_ShowsAgentsFromAllMachines(t *testing.T) {
 	m := buildTestManagerWithSharedSpace()
-	m.NextSpace() // → ws-shared, global space mode
+	m.NextSpace() // → shared-proj, global space mode
 	keys := m.RenderAll()
 	agentCount := 0
 	for i := 0; i < 10; i++ {
@@ -354,9 +354,9 @@ func TestRenderAll_GlobalSpaceFilter_ShowsAgentsFromAllMachines(t *testing.T) {
 			t.Logf("agent %d: connName=%s, name=%s", i, keys[i].Agent.ConnName, keys[i].Agent.Alias)
 		}
 	}
-	// ws-shared has 3 agents: 2 from local + 1 from dev-server
+	// shared-proj has 3 agents: 2 from local + 1 from dev-server
 	if agentCount != 3 {
-		t.Errorf("expected 3 agents from ws-shared across both machines, got %d", agentCount)
+		t.Errorf("expected 3 agents from 'shared-proj' across both machines, got %d", agentCount)
 	}
 	// Verify both machines represented
 	seenLocal := false
@@ -400,17 +400,17 @@ func TestK12_K13_Independent_MutuallyExclusive(t *testing.T) {
 	m := buildTestManagerWithSharedSpace()
 	// Start ALL → K12 enters machine mode
 	m.NextMachine()
-	if m.Mode != ModeMachine || m.ConnName == "" || m.WsID != "" {
-		t.Fatalf("expected Machine mode with connName set, wsID empty")
+	if m.Mode != ModeMachine || m.ConnName == "" || m.WsLabel != "" {
+		t.Fatalf("expected Machine mode with connName set, wsLabel empty")
 	}
 	// K13 from machine mode enters space mode, clears connName
 	m.NextSpace()
-	if m.Mode != ModeSpace || m.ConnName != "" || m.WsID == "" {
-		t.Fatalf("expected Space mode with wsID set, connName empty")
+	if m.Mode != ModeSpace || m.ConnName != "" || m.WsLabel == "" {
+		t.Fatalf("expected Space mode with wsLabel set, connName empty")
 	}
-	// K12 from space mode enters machine mode, clears wsID
+	// K12 from space mode enters machine mode, clears wsLabel
 	m.NextMachine()
-	if m.Mode != ModeMachine || m.ConnName == "" || m.WsID != "" {
-		t.Fatalf("expected Machine mode with connName set, wsID empty")
+	if m.Mode != ModeMachine || m.ConnName == "" || m.WsLabel != "" {
+		t.Fatalf("expected Machine mode with connName set, wsLabel empty")
 	}
 }

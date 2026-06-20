@@ -79,9 +79,10 @@ type MachineRef struct {
 	ConnAbbrColor string `json:"conn_abbr_color"`
 }
 
-// SpaceRef identifies a workspace within a machine (for K13 display).
+// SpaceRef identifies a workspace (for K13 display).
+// Label is the canonical key for cross-machine matching (WsID is a per-machine UUID).
 type SpaceRef struct {
-	WsID  string `json:"ws_id"`
+	WsID  string `json:"ws_id,omitempty"`
 	Label string `json:"label"`
 }
 

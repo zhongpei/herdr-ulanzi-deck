@@ -77,7 +77,7 @@ type Snapshot struct {
 	TopAgents     []types.AgentInfo
 	Mode          mapper.FilterMode
 	ConnName      string
-	WsID          string
+	WsLabel       string // current space label filter (not wsID, matches across machines)
 	Stats         types.AgentStats
 	CPUPercent    float64
 	MemoryPercent float64
@@ -89,10 +89,10 @@ type Snapshot struct {
 func (s *Store) Capture() *Snapshot {
 	cpu, mem := s.sm.GetSysStats()
 	snap := &Snapshot{
-		TopAgents:     s.sm.GetFilteredAgents(s.mapper.ConnName, s.mapper.WsID),
+		TopAgents:     s.sm.GetFilteredAgents(s.mapper.ConnName, s.mapper.WsLabel),
 		Mode:          s.mapper.Mode,
 		ConnName:      s.mapper.ConnName,
-		WsID:          s.mapper.WsID,
+		WsLabel:       s.mapper.WsLabel,
 		Stats:         s.sm.ComputeStats(),
 		CPUPercent:    cpu,
 		MemoryPercent: mem,
@@ -150,7 +150,7 @@ func (s *Snapshot) visualHash() string {
 		}
 		fp += "|" + a.Name + "|" + a.ConnName + "|" + a.WsLabel + "\n"
 	}
-	fp += "M" + itoa(int(s.Mode)) + "|" + s.ConnName + "|" + s.WsID + "\n"
+	fp += "M" + itoa(int(s.Mode)) + "|" + s.ConnName + "|" + s.WsLabel + "\n"
 	fp += "S" + itoa(s.Stats.Done) + itoa(s.Stats.Idle) +
 		itoa(s.Stats.Working) + itoa(s.Stats.Blocked) + itoa(s.Stats.Unknown)
 	cpuStr := fmt.Sprintf("%.1f", s.CPUPercent)

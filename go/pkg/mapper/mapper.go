@@ -28,9 +28,9 @@ const (
 type Mapper struct {
 	state    *state.Manager
 	Mode     FilterMode
-	ConnName string // current machine filter
-	WsID     string // current space filter
-	K11Mode  string // "all" or "active"
+	ConnName string  // current machine filter
+	WsLabel  string  // current space label filter (not wsID — labels match across machines)
+	K11Mode  string  // "all" or "active"
 }
 
 // New creates a Mapper in ALL mode.
@@ -45,7 +45,7 @@ func New(sm *state.Manager) *Mapper {
 func (m *Mapper) SetAll() {
 	m.Mode = ModeAll
 	m.ConnName = ""
-	m.WsID = ""
+	m.WsLabel = ""
 }
 
 // NextMachine cycles to the next machine in sequence.
@@ -62,34 +62,35 @@ func (m *Mapper) NextMachine() {
 		m.ConnName = machines[(idx+1)%len(machines)].ConnName
 	}
 	m.Mode = ModeMachine
-	m.WsID = "" // clear space filter
+	m.WsLabel = "" // clear space filter
 }
 
 // NextSpace cycles to the next workspace (space) globally, independent of machine.
-// Works from ALL mode (was no-op) and clears ConnName.
+// Uses Label (workspace name) for matching, not wsID — so the same project
+// on different machines is treated as one space.
 func (m *Mapper) NextSpace() {
 	spaces := m.state.GetAllSpaces()
 	if len(spaces) == 0 {
 		return
 	}
-	// If wsId is stale, reset
-	if m.WsID != "" {
+	// If label is stale, reset
+	if m.WsLabel != "" {
 		found := false
 		for _, s := range spaces {
-			if s.WsID == m.WsID {
+			if s.Label == m.WsLabel {
 				found = true
 				break
 			}
 		}
 		if !found {
-			m.WsID = ""
+			m.WsLabel = ""
 		}
 	}
-	if m.WsID == "" {
-		m.WsID = spaces[0].WsID
+	if m.WsLabel == "" {
+		m.WsLabel = spaces[0].Label
 	} else {
-		idx := findSpaceIndex(spaces, m.WsID)
-		m.WsID = spaces[(idx+1)%len(spaces)].WsID
+		idx := findSpaceIndex(spaces, m.WsLabel)
+		m.WsLabel = spaces[(idx+1)%len(spaces)].Label
 	}
 	m.Mode = ModeSpace
 	m.ConnName = "" // clear machine filter
@@ -97,7 +98,7 @@ func (m *Mapper) NextSpace() {
 
 // RenderAll produces 14 key commands (K1-K10 agents + K11-K14 nav/stats).
 func (m *Mapper) RenderAll() []types.KeyCommand {
-	agents := m.state.GetFilteredAgents(m.ConnName, m.WsID)
+	agents := m.state.GetFilteredAgents(m.ConnName, m.WsLabel)
 	machines := m.state.GetMachines()
 	stats := m.state.ComputeStats()
 
@@ -142,8 +143,8 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 
 	spaces := m.state.GetAllSpaces()
 	spaceIdx := -1
-	if m.WsID != "" {
-		spaceIdx = findSpaceIndex(spaces, m.WsID)
+	if m.WsLabel != "" {
+		spaceIdx = findSpaceIndex(spaces, m.WsLabel)
 	}
 	nextSpace := spaceNext(spaces, spaceIdx)
 
@@ -225,9 +226,9 @@ func findMachineIndex(machines []types.MachineRef, name string) int {
 	return -1
 }
 
-func findSpaceIndex(spaces []types.SpaceRef, wsID string) int {
+func findSpaceIndex(spaces []types.SpaceRef, label string) int {
 	for i, s := range spaces {
-		if s.WsID == wsID {
+		if s.Label == label {
 			return i
 		}
 	}

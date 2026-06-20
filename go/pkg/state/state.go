@@ -122,12 +122,14 @@ func (m *Manager) GetAllAgents() []types.AgentInfo {
 }
 
 // GetFilteredAgents returns sorted, filtered, truncated (≤10) agent list.
-// filterConnName and filterWsId are optional; empty means no filter.
-func (m *Manager) GetFilteredAgents(filterConnName, filterWsID string) []types.AgentInfo {
+// filterConnName and filterWsLabel are optional; empty means no filter.
+// Space filter uses WsLabel (workspace name) so the same project on different
+// machines (with different workspace UUIDs) is treated as one space.
+func (m *Manager) GetFilteredAgents(filterConnName, filterWsLabel string) []types.AgentInfo {
 	agents := m.GetAllAgents()
 
 	// Apply machine filter (only when no global space filter)
-	if filterConnName != "" && filterWsID == "" {
+	if filterConnName != "" && filterWsLabel == "" {
 		var filtered []types.AgentInfo
 		for _, a := range agents {
 			if a.ConnName == filterConnName {
@@ -137,11 +139,11 @@ func (m *Manager) GetFilteredAgents(filterConnName, filterWsID string) []types.A
 		agents = filtered
 	}
 
-	// Apply global space filter (independent of machine)
-	if filterWsID != "" {
+	// Apply global space filter by LABEL (not wsID — wsID is per-machine UUID)
+	if filterWsLabel != "" {
 		var filtered []types.AgentInfo
 		for _, a := range agents {
-			if a.WsID == filterWsID {
+			if a.WsLabel == filterWsLabel {
 				filtered = append(filtered, a)
 			}
 		}
@@ -210,17 +212,18 @@ func (m *Manager) GetSpaces(connName string) []types.SpaceRef {
 	return spaces
 }
 
-// GetAllSpaces returns unique workspace references across ALL machines.
+// GetAllSpaces returns unique workspace references across ALL machines,
+// deduplicated by Label (workspace name) so the same project on different
+// machines appears as one space.
 func (m *Manager) GetAllSpaces() []types.SpaceRef {
 	var spaces []types.SpaceRef
 	seen := make(map[string]bool)
 	for _, ws := range m.unified {
-		if seen[ws.WorkspaceID] {
+		if seen[ws.Label] {
 			continue
 		}
-		seen[ws.WorkspaceID] = true
+		seen[ws.Label] = true
 		spaces = append(spaces, types.SpaceRef{
-			WsID:  ws.WorkspaceID,
 			Label: ws.Label,
 		})
 	}
