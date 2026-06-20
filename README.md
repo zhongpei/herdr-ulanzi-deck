@@ -1,6 +1,6 @@
-# herdr-ulanzi-deck
+# herdr-deck
 
-Display [herdr](https://herdr.dev) AI agent status on **Ulanzi D200X**.
+Display [herdr](https://herdr.dev) AI agent status on **Ulanzi D200X** macro keypad.
 
 > [中文说明](./docs/README.zh.md)
 
@@ -10,46 +10,110 @@ Display [herdr](https://herdr.dev) AI agent status on **Ulanzi D200X**.
 
 ## Features
 
-- **Real-time agent status** — Reads herdr workspaces and agents via Unix socket, displays on D200X LCD keys
+- **Real-time agent status** — Reads herdr workspaces and agents, displays on D200X LCD keys
 - **Multi-machine** — Supports multiple herdr instances (local + remote via SSH tunnel)
 - **Priority sorting** — Agents sorted by status: BLOCKED → DONE → WORKING → IDLE → UNKNOWN
-- **Filter navigation** — K11=ALL, K12=machine cycle, K13=space cycle
-- **Brand colors** — Each agent type has its own brand color as status background (Pi=purple, Claude=warm brown, Cursor=teal...)
-- **Machine colors** — Each machine connection has a defined color (shown on K12 button background)
+- **Filter navigation** — K11=ALL, K12=machine cycle, K13=space cycle  
+- **Brand colors** — Each agent type has its own brand color (Pi=purple, Claude=warm brown, Cursor=teal...)
+- **Machine colors** — Each connection has a defined color (shown on K12 button background)
+
+## Architecture
+
+Two implementations are provided:
+
+### Go (recommended) — `go/`
+
+```
+Standalone binary, no Node.js needed.
+Compiled to a single executable.
+
+Go binary → WebSocket → UlanziDeck D200X
+```
+
+- **Single binary**: 6.5MB arm64, zero external dependencies
+- **No plugin directory needed**: runs from anywhere
+- **No npm install**: built-in SVG→PNG rendering via `tdewolff/canvas`
+- **Languages**: Go 1.22+, uses gorilla/websocket + tdewolff/canvas
+
+### JavaScript (original) — `src/`
+
+```
+Node.js plugin → WebSocket → UlanziDeck D200X
+```
+
+- Requires Node.js 20+ and npm dependencies (sharp, ws)
+- Runs inside UlanziDeck's plugin directory
+- Deployed by copying files to plugin dir + `npm install`
+
+## Quick Start (Go)
+
+```bash
+# Build and run
+cd go && make build
+./build/herdrdeck 127.0.0.1 3906
+
+# Or use deploy script (kills old processes, builds, starts)
+bash scripts/deploy-go.sh
+```
+
+The K11 (ALL) button shows a green **Go** badge to confirm the Go version is active.
+
+### Requirements (Go)
+
+- [herdr](https://herdr.dev) running (local or remote)
+- [Ulanzi Studio](https://www.ulanzi.com) 3.1.9+
+- Ulanzi D200X device
+- Go 1.22+ (for building)
+
+## Quick Start (JavaScript)
+
+```bash
+# Copy plugin to UlanziDeck plugins directory
+cp -r herdr-deck \
+  ~/Library/Application\ Support/Ulanzi/UlanziDeck/Plugins/com.ulanzi.herdr.agentview.ulanziPlugin
+
+# Install dependencies
+cd ~/Library/Application\ Support/Ulanzi/UlanziDeck/Plugins/com.ulanzi.herdr.agentview.ulanziPlugin
+npm install
+
+# Run
+node src/index.js 127.0.0.1 3906 zh_CN
+
+# Or use deploy script
+bash scripts/deploy-and-run.sh
+```
+
+### Requirements (JavaScript)
+
+- [herdr](https://herdr.dev) running
+- [Ulanzi Studio](https://www.ulanzi.com) 3.1.9+
+- Ulanzi D200X device
+- Node.js 20+
 
 ## How it works
 
 ```
-Herdr Unix Socket  → herdr-client  →  herdr-bridge  →  StateManager
-                                                          │
-                    UlanziDeck D200X  ←  DeckClient  ←  ButtonMapper
-                                                   ←  IconRenderer (SVG→PNG)
+Herdr Unix Socket → client → bridge → StateManager → ButtonMapper → SVG→PNG → WebSocket → UlanziDeck
 ```
 
-1. Plugin reads herdr data via Unix socket JSON-line API
+1. Reads herdr data via Unix socket JSON-line API
 2. Merges multi-machine data into a unified workspace tree
-3. Sorts agents by status priority, filtered by current mode (ALL/machine/space)
-4. Generates SVG icons with brand colors → converts to PNG via `sharp`
+3. Sorts agents by status priority, filtered by current mode
+4. Generates SVG icons → converts to PNG
 5. Sends state commands to UlanziDeck via WebSocket (port 3906)
 
-## Installation
+**Key difference between Go and JS**:
 
-### 1. Install plugin
+| Aspect | Go | JavaScript |
+|--------|----|-----------|
+| Runtime | Compiled binary | Node.js 20+ |
+| Dependencies | None (vendored) | npm (ws, sharp) |
+| SVG→PNG | tdewolff/canvas (pure Go) | sharp (C++ addon) |
+| Deployment | `./herdrdeck` from anywhere | Files must be in plugin dir |
+| Binary size | ~6.5MB | 184MB+ (Node.js + node_modules) |
+| Plugin manifest | Generated + stub index.js | Full plugin with CodePath |
 
-```bash
-# Copy plugin to UlanziDeck plugins directory
-cp -r herdr-ulanzi-deck \
-  ~/Library/Application\ Support/Ulanzi/UlanziDeck/Plugins/com.ulanzi.herdr.agentview.ulanziPlugin
-```
-
-### 2. Install dependencies
-
-```bash
-cd ~/Library/Application\ Support/Ulanzi/UlanziDeck/Plugins/com.ulanzi.herdr.agentview.ulanziPlugin
-npm install
-```
-
-### 3. Configure connections
+## Configuration
 
 Create `~/.config/herdr-deck/connections.json`:
 
@@ -74,27 +138,15 @@ Create `~/.config/herdr-deck/connections.json`:
 }
 ```
 
-### 4. Run
-
-```bash
-node src/index.js 127.0.0.1 3906 zh_CN
-```
-
-Or use the deploy script:
-
-```bash
-bash scripts/deploy-and-run.sh
-```
-
 ## Key Bindings (D200X)
 
 | Key | Function |
 |-----|----------|
 | K1-K10 | Agent status (sorted by priority) |
-| K11 | **ALL** — show all machines |
+| K11 | **ALL** — show all machines (green Go badge in bottom-right) |
 | K12 | **Machine cycle** — switch between machines (bg = machine color) |
 | K13 | **Space cycle** — switch spaces within current machine |
-| K14 | **Global stats** — D/I/W/B/? counts (bottom-right, colored) |
+| K14 | **Global stats** — D/I/W/B/? counts (right-aligned) |
 
 ## Agent Status Priority
 
@@ -107,19 +159,17 @@ bash scripts/deploy-and-run.sh
 ## Development
 
 ```bash
-# Run tests
+# Go tests
+cd go && make test
+
+# JavaScript tests
 node tests/filter-buttons.test.js
 
-# Deploy after code changes
+# Deploy Go version
+bash scripts/deploy-go.sh
+
+# Deploy JS version (legacy)
 bash scripts/deploy-and-run.sh
 ```
 
 See [AGENTS.md](./AGENTS.md) for development rules.
-
-## Requirements
-
-- [herdr](https://herdr.dev) running (local or remote)
-- [Ulanzi Studio](https://www.ulanzi.com) 3.1.9+
-- Ulanzi D200X device
-- Node.js 20+
-- SSH access to remote herdr instances (optional)
