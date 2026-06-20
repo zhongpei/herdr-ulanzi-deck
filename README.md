@@ -2,6 +2,8 @@
 
 Display [herdr](https://herdr.dev) AI agent status on **Ulanzi D200X**.
 
+> [中文说明](./docs/README.zh.md)
+
 <p align="center">
   <img src="./assets/deck-photo.jpg" width="600" alt="Herdr agents on Ulanzi D200X">
 </p>
