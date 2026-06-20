@@ -55,11 +55,11 @@ export class ConnectionManager {
 	async _startSSHTunnel(cfg, localPort) {
 		const addr = `127.0.0.1:${localPort}`;
 
-		const proc = spawn("ssh", [
-			"-NL",
-			`${localPort}:${cfg.remoteSocket}`,
-			cfg.host,
-		], { stdio: ["ignore", "pipe", "pipe"] });
+		const proc = spawn(
+			"ssh",
+			["-NL", `${localPort}:${cfg.remoteSocket}`, cfg.host],
+			{ stdio: ["ignore", "pipe", "pipe"] },
+		);
 
 		const ready = await waitForPort(localPort, 10000);
 		if (!ready) {
@@ -77,7 +77,11 @@ export class ConnectionManager {
 			t.kill("SIGINT");
 			// Fallback SIGKILL after 1s (matches Go tunnel.go Close)
 			setTimeout(() => {
-				try { t.kill("SIGKILL"); } catch { /* already dead */ }
+				try {
+					t.kill("SIGKILL");
+				} catch {
+					/* already dead */
+				}
 			}, 1000);
 		}
 		this.tunnels = [];

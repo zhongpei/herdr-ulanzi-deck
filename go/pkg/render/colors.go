@@ -27,7 +27,7 @@ var AgentColors = map[string]string{
 var StatusColors = map[string]string{
 	"done":    "#27AE60",
 	"idle":    "#7F8C8D",
-	"working": "#F39C12",
+	"working": "#B8860B",
 	"blocked": "#E74C3C",
 	"unknown": "#95A5A6",
 }

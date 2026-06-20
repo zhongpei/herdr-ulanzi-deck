@@ -33,10 +33,11 @@ function startServer(port) {
 		const server = net.createServer((sock) => {
 			sock.on("data", (data) => {
 				// Echo back a JSON-line response
-				const response = JSON.stringify({
-					id: "test:resp",
-					result: { ok: true },
-				}) + "\n";
+				const response =
+					JSON.stringify({
+						id: "test:resp",
+						result: { ok: true },
+					}) + "\n";
 				sock.write(response);
 			});
 		});
@@ -74,7 +75,9 @@ const elapsed = Date.now() - start;
 assert(elapsed < 500, `should timeout in ~200ms, took ${elapsed}ms`);
 
 // ─── Test 5: waitForPort with port that opens later ─────────────
-console.log("\n=== Test 5: waitForPort detects port that opens after delay ===");
+console.log(
+	"\n=== Test 5: waitForPort detects port that opens after delay ===",
+);
 (async () => {
 	// Start server after 300ms delay
 	setTimeout(async () => {

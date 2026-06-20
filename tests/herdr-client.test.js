@@ -127,7 +127,10 @@ try {
 		await client.request("unknown.method", {});
 		assert(false, "should have thrown");
 	} catch (err) {
-		assert(err.message.includes("method not found"), `error message matches: "${err.message}"`);
+		assert(
+			err.message.includes("method not found"),
+			`error message matches: "${err.message}"`,
+		);
 	}
 } finally {
 	if (server4) server4.close();
@@ -140,8 +143,10 @@ try {
 	await client.request("workspace.list", {});
 	assert(false, "should have thrown on connection refused");
 } catch (err) {
-	assert(err.code === "ECONNREFUSED" || err.message.includes("connect"),
-		`connection error: code=${err.code} msg="${err.message?.slice(0, 60)}"`);
+	assert(
+		err.code === "ECONNREFUSED" || err.message.includes("connect"),
+		`connection error: code=${err.code} msg="${err.message?.slice(0, 60)}"`,
+	);
 }
 
 // ─── Summary ────────────────────────────────────────────────────
