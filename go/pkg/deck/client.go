@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -23,7 +22,14 @@ const (
 	DefaultAddr = "127.0.0.1"
 )
 
-// Message types from UlanziDeck
+// Options for creating a new Client.
+type Options struct {
+	Address string
+	Port    int
+	Debug   bool
+}
+
+// Message types from UlanziDeck.
 type Message struct {
 	Cmd      string          `json:"cmd,omitempty"`
 	CmdType  string          `json:"cmdType,omitempty"`
@@ -44,30 +50,29 @@ type KeyDownHandler func(msg Message)
 type Client struct {
 	ws         *websocket.Conn
 	connected  bool
-	address    string
-	port       int
+	opts       Options
 	keyActions map[string]string // key → actionID
-	keyOrder   []string          // insertion order (JS Map preserves it)
 	readyKeys  bool
-	logAll     bool
-
-	mu      sync.RWMutex
-	writeMu sync.Mutex
+	mu         sync.RWMutex
+	writeMu    sync.Mutex
 
 	onAdd     AddHandler
 	onKeyDown KeyDownHandler
 }
 
 // New creates a DeckClient.
-func New(onAdd AddHandler, onKeyDown KeyDownHandler) *Client {
+func New(opts Options, onAdd AddHandler, onKeyDown KeyDownHandler) *Client {
+	if opts.Address == "" {
+		opts.Address = DefaultAddr
+	}
+	if opts.Port == 0 {
+		opts.Port = DefaultPort
+	}
 	c := &Client{
-		address:    DefaultAddr,
-		port:       DefaultPort,
+		opts:       opts,
 		keyActions: make(map[string]string),
-
-		onAdd:     onAdd,
-		onKeyDown: onKeyDown,
-		logAll:    true,
+		onAdd:      onAdd,
+		onKeyDown:  onKeyDown,
 	}
 	if c.onAdd == nil {
 		c.onAdd = func(_, _ string) {}
@@ -80,24 +85,21 @@ func New(onAdd AddHandler, onKeyDown KeyDownHandler) *Client {
 
 // Connect establishes the WebSocket connection.
 func (c *Client) Connect() error {
-	args := os.Args[1:]
-	if len(args) >= 2 {
-		c.address = args[0]
-		fmt.Sscanf(args[1], "%d", &c.port)
-	}
-
-	addr := fmt.Sprintf("ws://%s:%d", c.address, c.port)
+	addr := fmt.Sprintf("ws://%s:%d", c.opts.Address, c.opts.Port)
 	ws, _, err := websocket.DefaultDialer.Dial(addr, nil)
 	if err != nil {
 		return fmt.Errorf("dial %s: %w", addr, err)
 	}
 
 	c.mu.Lock()
+	// Close old connection if any
+	if c.ws != nil {
+		c.ws.Close()
+	}
 	c.ws = ws
 	c.connected = true
 	c.mu.Unlock()
 
-	// Connect as plugin UUID for keydown events
 	code0 := 0
 	c.sendJSON(Message{
 		Code:     &code0,
@@ -112,13 +114,12 @@ func (c *Client) Connect() error {
 }
 
 // ReadPump reads messages from WebSocket and dispatches to handlers.
-// Must be called in a goroutine after Connect().
+// Blocks until the connection is closed or an error occurs.
 func (c *Client) ReadPump() {
 	c.mu.RLock()
 	ws := c.ws
 	c.mu.RUnlock()
 	if ws == nil {
-		log.Println("[deck] ReadPump: ws is nil")
 		return
 	}
 
@@ -138,85 +139,66 @@ func (c *Client) ReadPump() {
 			continue
 		}
 
-		if c.logAll {
-			log.Printf("[deck] RECV: %s", truncateJSON(raw, 120))
-		}
-
-		c.handleMessage(msg)
+		c.handleMessage(msg, raw)
 	}
 }
 
-func (c *Client) handleMessage(msg Message) {
-	// Per SDK: only ack messages that have NO code field (bare events like add/keydown).
-	// Messages WITH code (like state NOTIFY) are the deck's responses — do NOT ack or we loop.
-	// SDK check: typeof data.code === "undefined" → this is a real event, not a response.
+func (c *Client) handleMessage(msg Message, raw []byte) {
+	// SDK: only ack messages without a code field (bare events, not responses)
 	if msg.Cmd != "" && msg.Cmd != "connected" && msg.Code == nil {
 		c.sendAck(msg)
 	}
 
 	switch msg.Cmd {
 	case "connected":
-		log.Printf("[deck] connected: key=%s actionid=%s", msg.Key, msg.ActionID)
-
+		c.log("[deck] connected: key=%s actionid=%s", msg.Key, msg.ActionID)
 	case "add":
 		if msg.Key != "" && msg.ActionID != "" {
 			c.mu.Lock()
 			c.keyActions[msg.Key] = msg.ActionID
-			ready := len(c.keyActions)
+			n := len(c.keyActions)
 			c.mu.Unlock()
-			log.Printf("[deck] add: key=%s actionid=%s (total: %d)", msg.Key, msg.ActionID, ready)
 			c.readyKeys = true
 			c.onAdd(msg.Key, msg.ActionID)
+			c.log("[deck] add: key=%s (total: %d)", msg.Key, n)
 		}
-
 	case "clear":
 		if msg.Param != nil {
 			var items []struct {
 				Key string `json:"key"`
 			}
-			if err := json.Unmarshal(msg.Param, &items); err == nil {
+			if json.Unmarshal(msg.Param, &items) == nil {
 				for _, item := range items {
 					c.mu.Lock()
 					delete(c.keyActions, item.Key)
 					c.mu.Unlock()
-					log.Printf("[deck] clear: key=%s", item.Key)
+					c.log("[deck] clear: key=%s", item.Key)
 				}
 			}
 		}
-
 	case "keydown":
 		c.onKeyDown(msg)
-
 	case "keyup", "run", "setactive":
-		// no-op
 	}
 }
 
-// sendAck sends a required acknowledgment response per the Ulanzi SDK protocol.
-// The host expects a response for every message sent to the plugin.
 func (c *Client) sendAck(msg Message) {
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return
-	}
-	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return
-	}
-	raw["code"] = 0
-
-	payload := map[string]any{
+	ack := map[string]any{
 		"cmd":      msg.Cmd,
+		"code":     0,
 		"uuid":     PluginUUID,
 		"key":      msg.Key,
 		"actionid": msg.ActionID,
 	}
 	// Echo back all original fields
-	for k, v := range raw {
-		payload[k] = v
+	data, _ := json.Marshal(msg)
+	var raw map[string]any
+	if json.Unmarshal(data, &raw) == nil {
+		for k, v := range raw {
+			ack[k] = v
+		}
 	}
-
-	ackData, _ := json.Marshal(payload)
+	ackData, _ := json.Marshal(ack)
 	c.sendRaw(ackData)
 }
 
@@ -230,12 +212,10 @@ func (c *Client) SeedKeyActions(kv map[string]string) {
 	}
 	c.readyKeys = len(c.keyActions) > 0
 	c.mu.Unlock()
-	log.Printf("[deck] seeded %d keys from profile", len(kv))
+	c.log("[deck] seeded %d keys from profile", len(kv))
 }
 
 // SetKeyImage sends a state command for one key.
-// svgDataURI is "data:image/svg+xml;base64,..."
-// wide=true for the large key at 3_2 (spans 2 columns, renders at 392×196).
 func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 	w := 196
 	if wide {
@@ -243,7 +223,6 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 	}
 	h := 196
 
-	// Strip data URI prefix, decode base64
 	b64 := svgDataURI
 	prefixLen := len("data:image/svg+xml;base64,")
 	if len(b64) > prefixLen && b64[:prefixLen] == "data:image/svg+xml;base64," {
@@ -254,10 +233,9 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 		return fmt.Errorf("base64 decode: %w", err)
 	}
 
-	// Convert SVG → PNG via rasterizer
 	pngData, err := svgToPNG(svgData, w, h)
 	if err != nil {
-		return fmt.Errorf("svg→png failed for %s: %w", key, err)
+		return fmt.Errorf("svg→png: %w", err)
 	}
 
 	pngBase64 := base64.StdEncoding.EncodeToString(pngData)
@@ -267,10 +245,8 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 	actionID := c.keyActions[key]
 	c.mu.RUnlock()
 
-	// If actionID is empty, the deck hasn't sent the add event for this key yet.
-	// Sending with empty actionid would cause the deck to reject/clear the key.
-	// Skip the update until we have a valid actionid.
 	if actionID == "" {
+		c.log("[deck] SetKeyImage %s: no actionID, skip", key)
 		return nil
 	}
 
@@ -296,7 +272,6 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 func (c *Client) send(cmd string, params map[string]any) error {
 	firstKey, firstAction := c.getFirstKeyAction()
 	if firstAction == "" {
-		// No key actions registered yet, deck won't accept state commands
 		return nil
 	}
 	payload := map[string]any{
@@ -308,7 +283,6 @@ func (c *Client) send(cmd string, params map[string]any) error {
 	for k, v := range params {
 		payload[k] = v
 	}
-
 	data, _ := json.Marshal(payload)
 	return c.sendRaw(data)
 }
@@ -326,15 +300,9 @@ func (c *Client) sendRaw(data []byte) error {
 	ws := c.ws
 	connected := c.connected
 	c.mu.RUnlock()
-
 	if ws == nil || !connected {
 		return nil
 	}
-
-	if c.logAll {
-		log.Printf("[deck] SEND: %s", truncateJSON(data, 80))
-	}
-
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	return ws.WriteMessage(websocket.TextMessage, data)
@@ -361,27 +329,18 @@ func (c *Client) Close() {
 	c.connected = false
 }
 
-// ─── SVG → PNG rasterization (delegated to svg.go) ───────────────
-
-// ─── Helpers ─────────────────────────────────────────────────
-
-func truncateJSON(data []byte, maxLen int) string {
-	s := string(data)
-	if len(s) > maxLen {
-		// Try to keep start and end
-		return s[:maxLen/2] + "..." + s[len(s)-maxLen/2:]
-	}
-	return s
-}
-
-// RawSend sends raw bytes (for tests / manual control).
-func (c *Client) RawSend(data []byte) error {
-	return c.sendRaw(data)
-}
-
-// IsConnected returns whether the WebSocket is connected.
 func (c *Client) IsConnected() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.connected
 }
+
+// log prints debug messages when debug mode is on.
+func (c *Client) log(format string, args ...any) {
+	if c.opts.Debug {
+		log.Printf(format, args...)
+	}
+}
+
+// Ensure imports are used
+var _ = fmt.Sprintf

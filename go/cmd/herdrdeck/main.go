@@ -10,6 +10,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"time"
@@ -39,8 +40,17 @@ func physKeyFromID(keyID string) string {
 	if p, ok := navKeys[keyID]; ok {
 		return p
 	}
+	// Handle agent_N and empty_N — both use the same physical slot
 	var idx int
-	if _, err := fmt.Sscanf(keyID, "agent_%d", &idx); err == nil {
+	if n, _ := fmt.Sscanf(keyID, "agent_%d", &idx); n == 1 {
+		if idx >= 0 && idx <= 4 {
+			return fmt.Sprintf("%d_0", idx)
+		}
+		if idx >= 5 && idx <= 9 {
+			return fmt.Sprintf("%d_1", idx-5)
+		}
+	}
+	if n, _ := fmt.Sscanf(keyID, "empty_%d", &idx); n == 1 {
 		if idx >= 0 && idx <= 4 {
 			return fmt.Sprintf("%d_0", idx)
 		}
@@ -107,7 +117,17 @@ func onKeyDown(msg deck.Message) {
 
 // ─── Main ──────────────────────────────────────────────────
 func main() {
-	log.SetFlags(log.Ltime | log.Lmsgprefix)
+	addr := flag.String("addr", "127.0.0.1", "UlanziDeck WebSocket address")
+	port := flag.Int("port", 3906, "UlanziDeck WebSocket port")
+	debug := flag.Bool("debug", false, "enable debug logging")
+	flag.Parse()
+
+	if !*debug {
+		// Suppress non-critical log output in production
+		log.SetFlags(log.Ltime | log.Lmsgprefix)
+	} else {
+		log.SetFlags(log.Ltime | log.Lshortfile | log.Lmsgprefix)
+	}
 	log.SetPrefix("[herdr-deck] ")
 
 	sm = state.NewManager()
@@ -137,7 +157,11 @@ func main() {
 	log.Printf("[main] %d ws, %d agents", len(unified), len(sm.GetAllAgents()))
 
 	// ── Connect to deck ─────────────────────────────────────
-	dc = deck.New(onAdd, onKeyDown)
+	dc = deck.New(deck.Options{
+		Address: *addr,
+		Port:    *port,
+		Debug:   *debug,
+	}, onAdd, onKeyDown)
 	if err := dc.Connect(); err != nil {
 		log.Printf("[main] connect failed: %v", err)
 	}
@@ -165,13 +189,12 @@ func main() {
 			continue
 		}
 		snap := st.Capture()
+		st.MarkClean()
 		if !snap.ChangedSince(lastHash) {
-			st.MarkClean()
 			continue
 		}
 		lastHash = snap.Hash()
 		renderAll()
-		st.MarkClean()
 	}
 }
 
@@ -204,28 +227,36 @@ func renderAll() {
 	kd := bm.RenderAll()
 	for _, k := range kd {
 		var svg string
+		var kt string
 		switch {
 		case k.Agent != nil:
 			svg = ir.RenderAgentKey(*k.Agent)
+			kt = "agent " + k.Agent.AgentType + "/" + k.Agent.Status
 		case k.NavAll != nil:
 			svg = ir.RenderNavAll(*k.NavAll)
+			kt = "navAll"
 		case k.NavMac != nil:
 			svg = ir.RenderNavMachine(*k.NavMac)
+			kt = "navMachine " + k.NavMac.CurrentAbbr
 		case k.NavSpc != nil:
 			svg = ir.RenderNavSpace(*k.NavSpc)
+			kt = "navSpace"
 		case k.Stats != nil:
 			svg = ir.RenderStatsKey(k.Stats.Stats)
+			kt = "stats"
 		default:
 			svg = ir.RenderEmptyKey()
+			kt = "empty"
 		}
 		pk := physKeyFromID(keyCommandID(k))
 		if dc != nil && dc.IsConnected() {
 			if err := dc.SetKeyImage(pk, svg, pk == "3_2"); err != nil {
-				log.Printf("[render] %s: %v", pk, err)
+				log.Printf("[render] %s FAILED: %v", pk, err)
+			} else {
+				log.Printf("[render] %s OK (%s)", pk, kt)
 			}
-		}
-		if k.Type() != "empty" {
-			log.Printf("[render] %s (%s)", pk, k.Type())
+		} else {
+			log.Printf("[render] %s SKIP (disconnected): %s", pk, kt)
 		}
 	}
 	logFilterInfo()
