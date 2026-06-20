@@ -61,13 +61,13 @@ type Client struct {
 // New creates a DeckClient.
 func New(onAdd AddHandler, onKeyDown KeyDownHandler) *Client {
 	c := &Client{
-		address:       DefaultAddr,
-		port:          DefaultPort,
-		keyActions:    make(map[string]string),
+		address:    DefaultAddr,
+		port:       DefaultPort,
+		keyActions: make(map[string]string),
 
-		onAdd:         onAdd,
-		onKeyDown:     onKeyDown,
-		logAll:        true,
+		onAdd:     onAdd,
+		onKeyDown: onKeyDown,
+		logAll:    true,
 	}
 	if c.onAdd == nil {
 		c.onAdd = func(_, _ string) {}
@@ -267,6 +267,13 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 	actionID := c.keyActions[key]
 	c.mu.RUnlock()
 
+	// If actionID is empty, the deck hasn't sent the add event for this key yet.
+	// Sending with empty actionid would cause the deck to reject/clear the key.
+	// Skip the update until we have a valid actionid.
+	if actionID == "" {
+		return nil
+	}
+
 	return c.send("state", map[string]any{
 		"param": map[string]any{
 			"statelist": []map[string]any{
@@ -288,6 +295,10 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 
 func (c *Client) send(cmd string, params map[string]any) error {
 	firstKey, firstAction := c.getFirstKeyAction()
+	if firstAction == "" {
+		// No key actions registered yet, deck won't accept state commands
+		return nil
+	}
 	payload := map[string]any{
 		"cmd":      cmd,
 		"uuid":     PluginUUID,
