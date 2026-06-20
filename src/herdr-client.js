@@ -15,7 +15,10 @@ export class HerdrClient {
 		if (typeof this.target === "string") {
 			return net.createConnection({ path: this.target });
 		}
-		return net.createConnection({ host: this.target.host, port: this.target.port });
+		return net.createConnection({
+			host: this.target.host,
+			port: this.target.port,
+		});
 	}
 
 	async request(method, params = {}) {

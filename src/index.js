@@ -45,17 +45,22 @@ const KEY_MAP = {
 // Reverse map: key descriptor → physical key
 function physicalKeyForDescriptor(keyId) {
 	const map = {
-		nav_all: "0_2", // K11
-		nav_machine: "1_2", // K12
-		nav_space: "2_2", // K13
-		stats: "3_2", // K14
+		nav_all: "0_2",
+		nav_machine: "1_2",
+		nav_space: "2_2",
+		stats: "3_2",
 	};
 	if (map[keyId]) return map[keyId];
 
-	if (keyId.startsWith("agent_")) {
-		const idx = parseInt(keyId.split("_")[1]);
-		if (idx >= 0 && idx <= 4) return `${idx}_0`; // K1-K5 → col 0-4, row 0
-		if (idx >= 5 && idx <= 9) return `${idx - 5}_1`; // K6-K10 → col 0-4, row 1
+	// agent_N or empty_N → same physical slot
+	const prefix =
+		keyId.startsWith("agent_") || keyId.startsWith("empty_")
+			? keyId.split("_")[1]
+			: null;
+	if (prefix !== null) {
+		const idx = parseInt(prefix);
+		if (idx >= 0 && idx <= 4) return `${idx}_0`;
+		if (idx >= 5 && idx <= 9) return `${idx - 5}_1`;
 	}
 	return "0_0";
 }
@@ -181,7 +186,7 @@ async function renderAll(mapper, renderer, deck) {
 
 		const physKey = physicalKeyForDescriptor(kd.keyId);
 
-		if (deck && deck.connected && kd.type !== "empty") {
+		if (deck && deck.connected) {
 			const isWide = physKey === "3_2";
 			promises.push(deck.setKeyImage(physKey, svg, isWide));
 		}
@@ -267,7 +272,9 @@ function handleKeyDown(msg, mapper, iconRenderer) {
 						`[action] focus: ${agentData.connName}/${agentData.paneId}`,
 					);
 					if (herdrBridge) {
-						herdrBridge.focusAgent(agentData.connName, agentData.paneId).catch(() => {});
+						herdrBridge
+							.focusAgent(agentData.connName, agentData.paneId)
+							.catch(() => {});
 					}
 				}
 			}

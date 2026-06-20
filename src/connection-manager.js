@@ -44,25 +44,45 @@ export class ConnectionManager {
 				client.listWorkspaces(),
 				client.listAgents(),
 			]);
-			console.log(`[conn] ${cfg.name}: ${workspaces.length} ws, ${agents.length} agents`);
-			this.connections.push({ name: cfg.name, abbr: cfg.abbr, color: cfg.color, client, workspaces, agents });
+			console.log(
+				`[conn] ${cfg.name}: ${workspaces.length} ws, ${agents.length} agents`,
+			);
+			this.connections.push({
+				name: cfg.name,
+				abbr: cfg.abbr,
+				color: cfg.color,
+				client,
+				workspaces,
+				agents,
+			});
 		} catch (err) {
-			console.warn(`[conn] herdr connect failed for "${cfg.name}": ${err.message}`);
+			console.warn(
+				`[conn] herdr connect failed for "${cfg.name}": ${err.message}`,
+			);
 		}
 	}
 
 	// SSH tunnel via Unix socket forwarding
 	async startSSHTunnel(cfg) {
 		const localSocket = `/tmp/herdr-${cfg.name}.sock`;
-		try { fs.unlinkSync(localSocket); } catch {}
+		try {
+			fs.unlinkSync(localSocket);
+		} catch {}
 
-		const proc = spawn("ssh", [
-			"-L", `${localSocket}:${cfg.remoteSocket}`,
-			cfg.host,
-			"-N",
-			"-o", "ExitOnForwardFailure=yes",
-			"-o", "ServerAliveInterval=30",
-		], { stdio: ["ignore", "pipe", "pipe"] });
+		const proc = spawn(
+			"ssh",
+			[
+				"-L",
+				`${localSocket}:${cfg.remoteSocket}`,
+				cfg.host,
+				"-N",
+				"-o",
+				"ExitOnForwardFailure=yes",
+				"-o",
+				"ServerAliveInterval=30",
+			],
+			{ stdio: ["ignore", "pipe", "pipe"] },
+		);
 
 		return new Promise((resolve, reject) => {
 			let resolved = false;
@@ -87,8 +107,20 @@ export class ConnectionManager {
 				}
 			}, 15000);
 
-			proc.on("error", (err) => { if (!resolved) { resolved = true; clearInterval(check); reject(err); } });
-			proc.on("exit", (code) => { if (!resolved) { resolved = true; clearInterval(check); reject(new Error(`ssh exit ${code}`)); } });
+			proc.on("error", (err) => {
+				if (!resolved) {
+					resolved = true;
+					clearInterval(check);
+					reject(err);
+				}
+			});
+			proc.on("exit", (code) => {
+				if (!resolved) {
+					resolved = true;
+					clearInterval(check);
+					reject(new Error(`ssh exit ${code}`));
+				}
+			});
 		});
 	}
 

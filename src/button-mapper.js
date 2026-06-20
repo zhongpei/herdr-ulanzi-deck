@@ -39,14 +39,15 @@ export class ButtonMapper {
 	}
 
 	nextSpace() {
-		if (!this.connName) {
-			// No machine selected, start with first machine
-			this.nextMachine();
-			return;
-		}
+		if (!this.connName) return; // ALL mode: no space filtering
 
 		const spaces = this.state.getSpaces(this.connName);
 		if (spaces.length === 0) return;
+
+		// If wsId is stale (not in current machine's spaces), reset
+		if (this.wsId && !spaces.find((s) => s.wsId === this.wsId)) {
+			this.wsId = null;
+		}
 
 		if (!this.wsId) {
 			this.wsId = spaces[0].wsId;
