@@ -91,6 +91,7 @@ var (
 	st       *appstate.Store
 	lastHash string
 	tunnels  []*herdr.Tunnel
+	bridge   *herdr.Bridge
 )
 
 // ─── Callbacks (called from ReadPump goroutine) ─────────────
@@ -166,7 +167,7 @@ func runMain(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Warn().Err(err).Msg("config load issue, using defaults")
 	}
-	bridge := herdr.NewBridge()
+	bridge = herdr.NewBridge()
 
 	// Cleanup SSH tunnels on exit
 	defer func() {
@@ -263,30 +264,45 @@ func runMain(cmd *cobra.Command, args []string) error {
 	log.Debug().Msg("message pump started")
 
 	// ── Event loop (single goroutine) ───────────────────────
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
+	renderTick := time.NewTicker(50 * time.Millisecond)
+	defer renderTick.Stop()
+	refreshTick := time.NewTicker(2 * time.Second)
+	defer refreshTick.Stop()
 
 	loopIter := 0
-	for range ticker.C {
-		loopIter++
-		if loopIter%2000 == 0 {
-			log.Debug().Int("iter", loopIter).Msg("event loop heartbeat")
-		}
+	for {
+		select {
+		case <-refreshTick.C:
+			// Periodic herdr data refresh
+			loopIter++
+			unified := bridge.FetchAll()
+			st.RefreshHerdrData(unified)
+			// Force a refresh cycle even if re-seed is needed
+			allAgents := sm.GetAllAgents()
+			log.Debug().
+				Int("workspaces", len(unified)).
+				Int("agents", len(allAgents)).
+				Msg("herdr data refreshed")
 
-		if !st.IsDirty() {
-			continue
+		case <-renderTick.C:
+			if loopIter%2000 == 0 && loopIter > 0 {
+				log.Debug().Int("iter", loopIter).Msg("event loop heartbeat")
+			}
+
+			if !st.IsDirty() {
+				continue
+			}
+			snap := st.Capture()
+			st.MarkClean()
+			if !snap.ChangedSince(lastHash) {
+				log.Debug().Msg("state unchanged, skipping render")
+				continue
+			}
+			lastHash = snap.Hash()
+			log.Debug().Int("mode", int(snap.Mode)).Msg("state changed, rendering")
+			renderAll()
 		}
-		snap := st.Capture()
-		st.MarkClean()
-		if !snap.ChangedSince(lastHash) {
-			log.Debug().Msg("state unchanged, skipping render")
-			continue
-		}
-		lastHash = snap.Hash()
-		log.Debug().Int("mode", int(snap.Mode)).Msg("state changed, rendering")
-		renderAll()
 	}
-	return nil
 }
 
 // ── Logger init ───────────────────────────────────────────
