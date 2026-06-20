@@ -6,6 +6,6 @@
   "main": "src/index.js",
   "dependencies": {
     "sharp": "^0.35.2",
-    "ws": "^8.16.0"
+    "ws": "^8.21.0"
   }
 }
