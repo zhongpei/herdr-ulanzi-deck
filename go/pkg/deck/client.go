@@ -26,7 +26,8 @@ const (
 // Message types from UlanziDeck
 type Message struct {
 	Cmd      string          `json:"cmd,omitempty"`
-	Code     int             `json:"code"`
+	CmdType  string          `json:"cmdType,omitempty"`
+	Code     *int            `json:"code"`
 	Key      string          `json:"key"`
 	ActionID string          `json:"actionid"`
 	UUID     string          `json:"uuid,omitempty"`
@@ -97,8 +98,9 @@ func (c *Client) Connect() error {
 	c.mu.Unlock()
 
 	// Connect as plugin UUID for keydown events
+	code0 := 0
 	c.sendJSON(Message{
-		Code:     0,
+		Code:     &code0,
 		Cmd:      "connected",
 		UUID:     PluginUUID,
 		Key:      "",
@@ -145,9 +147,10 @@ func (c *Client) ReadPump() {
 }
 
 func (c *Client) handleMessage(msg Message) {
-	// Per SDK: main service MUST respond to every message with code:0 + original data
-	// This acknowledges receipt so the deck continues processing
-	if msg.Cmd != "" && msg.Cmd != "connected" {
+	// Per SDK: only ack messages that have NO code field (bare events like add/keydown).
+	// Messages WITH code (like state NOTIFY) are the deck's responses — do NOT ack or we loop.
+	// SDK check: typeof data.code === "undefined" → this is a real event, not a response.
+	if msg.Cmd != "" && msg.Cmd != "connected" && msg.Code == nil {
 		c.sendAck(msg)
 	}
 
