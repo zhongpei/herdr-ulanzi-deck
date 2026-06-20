@@ -15,12 +15,16 @@ import (
 
 // Renderer generates base64-encoded SVG data URIs for each key type.
 type Renderer struct {
-	agentIcons map[string]string
+	agentIcons  map[string]string
+	statusIcons map[string]string
 }
 
 // New creates a Renderer with built-in agent icon paths.
 func New() *Renderer {
-	return &Renderer{agentIcons: AgentIcons()}
+	return &Renderer{
+		agentIcons:  AgentIcons(),
+		statusIcons: StatusIcons(),
+	}
 }
 
 // ─── Agent key (K1-K10) ──────────────────────────────────────
@@ -40,7 +44,10 @@ func New() *Renderer {
 func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 	agentColor := lookupColor(d.AgentType, AgentColors, "#6B7280")
 	statusColor := lookupColor(d.Status, StatusColors, "#95A5A6")
-	statusLetter := statusFirstChar(d.Status)
+	statusIcon := r.statusIcons[d.Status]
+	if statusIcon == "" {
+		statusIcon = r.statusIcons["unknown"]
+	}
 	alias := escapeXML(d.Alias)
 	agentName := escapeXML(d.AgentType)
 	machineAbbr := escapeXML(d.ConnAbbr)
@@ -82,8 +89,7 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
         font-family="sans-serif" font-size="24" font-weight="800">%[8]s</text>
   <text x="100" y="90" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="36" font-weight="700">%[9]s</text>
-  <text x="185" y="88" text-anchor="end" fill="white"
-        font-family="sans-serif" font-size="22" font-weight="800">%[10]s</text>
+  <g transform="translate(10, 60)">%[10]s</g>
   <text x="100" y="140" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="26" font-weight="700">%[11]s</text>
 </svg>`,
@@ -95,7 +101,7 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 			agentName,
 			machineAbbr,
 			displayAlias,
-			statusLetter,
+			statusIcon,
 			wsLine1,
 		)
 	} else {
@@ -114,8 +120,7 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
         font-family="sans-serif" font-size="24" font-weight="800">%[8]s</text>
   <text x="100" y="90" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="36" font-weight="700">%[9]s</text>
-  <text x="185" y="88" text-anchor="end" fill="white"
-        font-family="sans-serif" font-size="22" font-weight="800">%[10]s</text>
+  <g transform="translate(10, 60)">%[10]s</g>
   <text x="100" y="135" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="22" font-weight="700">%[11]s</text>
   <text x="100" y="160" text-anchor="middle" fill="white"
@@ -129,7 +134,7 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 			agentName,
 			machineAbbr,
 			displayAlias,
-			statusLetter,
+			statusIcon,
 			wsLine1,
 			wsLine2,
 		)
