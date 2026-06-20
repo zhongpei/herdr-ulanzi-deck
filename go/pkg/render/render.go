@@ -223,8 +223,9 @@ func (r *Renderer) RenderNavSpace(d types.NavSpaceData) string {
 // ─── Stats bar (K14 - wide key) with CPU/MEM overlay ──────
 // Compact agent-status stats on the right side of the bottom row.
 // CPU/MEM percentages displayed at top-right with color thresholds:
-//   CPU: <40% white, 40-70% yellow, >=70% red
-//   MEM: <50% white, 50-80% yellow, >=80% red
+//
+//	CPU: <40% white, 40-70% yellow, >=70% red
+//	MEM: <50% white, 50-80% yellow, >=80% red
 func (r *Renderer) RenderStatsKey(d types.StatsData) string {
 	stats := d.Stats
 	items := []struct {
@@ -268,16 +269,17 @@ func (r *Renderer) RenderStatsKey(d types.StatsData) string {
 		memCol = "#555"
 	}
 
-	// CPU/MEM row at top-right: "CPU 45%  MEM 62%"
-	// Spaced to avoid overlap: labels ~28px, values ~32px at respective font sizes
+	// CPU/MEM row at top: "CPU 45%    MEM 62%" (3+ spaces between blocks)
+	// Larger font: labels 15pt, values 20pt. CPU block left at x=185, MEM
+	// block at x=290 so the gap is always ≥20px even with "100%" values.
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="240" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="14" font-weight="800">CPU</text>`))
+	inner.WriteString(fmt.Sprintf(`<text x="185" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="15" font-weight="800">CPU</text>`))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="278" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="18" font-weight="800">%s</text>`, cpuCol, cpuPct))
+	inner.WriteString(fmt.Sprintf(`<text x="218" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="20" font-weight="800">%s</text>`, cpuCol, cpuPct))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="320" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="14" font-weight="800">MEM</text>`))
+	inner.WriteString(fmt.Sprintf(`<text x="290" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="15" font-weight="800">MEM</text>`))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="358" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="18" font-weight="800">%s</text>`, memCol, memPct))
+	inner.WriteString(fmt.Sprintf(`<text x="325" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="20" font-weight="800">%s</text>`, memCol, memPct))
 
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">%s
 </svg>`, inner.String())

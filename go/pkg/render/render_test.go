@@ -243,7 +243,7 @@ func TestRenderStatsKey_Basic(t *testing.T) {
 		t.Error("should show Idle count 2")
 	}
 	if !strings.Contains(svg, ">W<") {
-	t.Error("should show Working label W")
+		t.Error("should show Working label W")
 	}
 	if !strings.Contains(svg, ">4<") {
 		t.Error("should show Working count 4")
