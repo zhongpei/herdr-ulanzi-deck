@@ -25,9 +25,9 @@
 
 ## 架构
 
-提供两个实现版本：
-
 ### Go 版（推荐）— `go/`
+
+**这是主力开发版本，生产环境使用此版本。**
 
 ```
 独立二进制，无需 Node.js。
@@ -42,7 +42,9 @@ Go binary → WebSocket → UlanziDeck D200X
 - **语言**: Go 1.25+
 - **依赖**: gorilla/websocket, tdewolff/canvas, zerolog, cobra
 
-### JS 版（原始）— `src/`
+### JS 版（参考）— `src/`
+
+**这是参考实现，仅用于演示 UlanziDeck SDK 的对接方式。** 主功能已在 Go 版实现，JS 版不再积极开发。
 
 ```
 Node.js 插件 → WebSocket → UlanziDeck D200X

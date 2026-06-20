@@ -26,9 +26,9 @@ The author primarily tests on **macOS (arm64)**.
 
 ## Implementations
 
-Two implementations are provided:
-
 ### Go (recommended) — `go/`
+
+**This is the actively developed version. Use this for production.**
 
 ```
 Standalone binary, no Node.js needed.
@@ -43,7 +43,10 @@ Go binary → WebSocket → UlanziDeck D200X
 - **Language**: Go 1.25+
 - **Dependencies**: gorilla/websocket, tdewolff/canvas, zerolog, cobra
 
-### JavaScript (original) — `src/`
+### JavaScript (demo) — `src/`
+
+**This is a reference implementation matching the official UlanziDeck SDK.**
+Kept as a demo for SDK interoperability reference only. Not actively developed.
 
 ```
 Node.js plugin → WebSocket → UlanziDeck D200X
