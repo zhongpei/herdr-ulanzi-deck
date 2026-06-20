@@ -222,28 +222,28 @@ func TestRenderStatsKey_Basic(t *testing.T) {
 		Unknown: 0,
 	}))
 	// Each item is now two <text> elements: colored letter + white number
-	if !strings.Contains(svg, ">D<" ) {
+	if !strings.Contains(svg, ">D<") {
 		t.Error("should show Done label D")
 	}
-	if !strings.Contains(svg, ">3<" ) {
+	if !strings.Contains(svg, ">3<") {
 		t.Error("should show Done count 3")
 	}
-	if !strings.Contains(svg, ">I<" ) {
+	if !strings.Contains(svg, ">I<") {
 		t.Error("should show Idle label I")
 	}
-	if !strings.Contains(svg, ">2<" ) {
+	if !strings.Contains(svg, ">2<") {
 		t.Error("should show Idle count 2")
 	}
-	if !strings.Contains(svg, ">W<" ) {
+	if !strings.Contains(svg, ">W<") {
 		t.Error("should show Working label W")
 	}
-	if !strings.Contains(svg, ">4<" ) {
+	if !strings.Contains(svg, ">4<") {
 		t.Error("should show Working count 4")
 	}
-	if !strings.Contains(svg, ">B<" ) {
+	if !strings.Contains(svg, ">B<") {
 		t.Error("should show Blocked label B")
 	}
-	if !strings.Contains(svg, ">1<" ) {
+	if !strings.Contains(svg, ">1<") {
 		t.Error("should show Blocked count 1")
 	}
 	// Numbers should be white
@@ -268,10 +268,10 @@ func TestRenderStatsKey_ZeroHidden(t *testing.T) {
 		Blocked: 0,
 		Unknown: 0,
 	}))
-	if !strings.Contains(svg, ">1<" ) {
+	if !strings.Contains(svg, ">1<") {
 		t.Error("should show D count 1")
 	}
-	if strings.Contains(svg, ">I<" ) {
+	if strings.Contains(svg, ">I<") {
 		t.Error("should skip I0, no I label")
 	}
 }
