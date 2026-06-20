@@ -24,6 +24,7 @@ type ConnConfig struct {
 // AppConfig holds the full set of configured connections.
 type AppConfig struct {
 	Connections []ConnConfig `json:"connections"`
+	K11Mode     string       `json:"k11Mode,omitempty"` // "all" or "active"
 }
 
 // defaultConfig is used when no config file exists.

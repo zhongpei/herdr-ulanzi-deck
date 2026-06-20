@@ -30,6 +30,7 @@ type Mapper struct {
 	Mode     FilterMode
 	ConnName string // current machine filter
 	WsID     string // current space filter
+	K11Mode  string // "all" or "active"
 }
 
 // New creates a Mapper in ALL mode.
@@ -64,17 +65,14 @@ func (m *Mapper) NextMachine() {
 	m.WsID = "" // clear space filter
 }
 
-// NextSpace cycles to the next workspace (space) within the current machine.
-// No-op when in ALL mode (no machine selected).
+// NextSpace cycles to the next workspace (space) globally, independent of machine.
+// Works from ALL mode (was no-op) and clears ConnName.
 func (m *Mapper) NextSpace() {
-	if m.ConnName == "" {
-		return // ALL mode: no space filtering
-	}
-	spaces := m.state.GetSpaces(m.ConnName)
+	spaces := m.state.GetAllSpaces()
 	if len(spaces) == 0 {
 		return
 	}
-	// If wsId is stale (not in current machine's spaces), reset
+	// If wsId is stale, reset
 	if m.WsID != "" {
 		found := false
 		for _, s := range spaces {
@@ -94,6 +92,7 @@ func (m *Mapper) NextSpace() {
 		m.WsID = spaces[(idx+1)%len(spaces)].WsID
 	}
 	m.Mode = ModeSpace
+	m.ConnName = "" // clear machine filter
 }
 
 // RenderAll produces 14 key commands (K1-K10 agents + K11-K14 nav/stats).
@@ -141,7 +140,7 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 	}
 	nextMachine := machineNext(machines, machineIdx)
 
-	spaces := m.state.GetSpaces(m.ConnName)
+	spaces := m.state.GetAllSpaces()
 	spaceIdx := -1
 	if m.WsID != "" {
 		spaceIdx = findSpaceIndex(spaces, m.WsID)
@@ -150,14 +149,18 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 
 	curMachine := machineCurrent(machines, machineIdx)
 
-	// K11: ALL button with system stats
-	isMachineMode := m.Mode == ModeMachine || m.Mode == ModeSpace
+	// K11 button label depends on mode
+	k11Label := "ALL"
+	if m.K11Mode == "active" {
+		k11Label = "ACT"
+	}
+	isMachineMode := m.Mode == ModeMachine
 	cpuPct, memPct := m.state.GetSysStats()
 	keys = append(keys, types.KeyCommand{
 		NavAll: &types.NavAllData{
 			KeyID:         "nav_all",
 			Type:          "navAll",
-			Label:         "ALL",
+			Label:         k11Label,
 			Active:        m.Mode == ModeAll,
 			CPUPercent:    cpuPct,
 			MemoryPercent: memPct,

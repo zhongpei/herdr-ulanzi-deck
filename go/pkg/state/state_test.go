@@ -443,3 +443,220 @@ func TestAgentDuration_CrossMachineKeys(t *testing.T) {
 		t.Errorf("expected 10m for dev-server|dup")
 	}
 }
+
+// ─── GetAllSpaces ──────────────────────────────────────────
+
+func TestGetAllSpaces(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+
+	spaces := m.GetAllSpaces()
+	if len(spaces) != 3 {
+		t.Fatalf("expected 3 unique spaces, got %d", len(spaces))
+	}
+	// Order should match first occurrence in unified
+	if spaces[0].WsID != "ws-1" || spaces[0].Label != "main-proj" {
+		t.Errorf("first space: expected ws-1/main-proj, got %s/%s", spaces[0].WsID, spaces[0].Label)
+	}
+	if spaces[1].WsID != "ws-2" || spaces[1].Label != "web-app" {
+		t.Errorf("second space: expected ws-2/web-app, got %s/%s", spaces[1].WsID, spaces[1].Label)
+	}
+	if spaces[2].WsID != "ws-3" || spaces[2].Label != "backend" {
+		t.Errorf("third space: expected ws-3/backend, got %s/%s", spaces[2].WsID, spaces[2].Label)
+	}
+}
+
+func TestGetAllSpaces_Dedup(t *testing.T) {
+	m := NewManager()
+	// Two workspaces with same wsID but on different machines
+	data := []types.UnifiedWorkspace{
+		{ConnName: "local", ConnAbbr: "LCL", WorkspaceID: "ws-shared", Label: "shared"},
+		{ConnName: "remote", ConnAbbr: "REM", WorkspaceID: "ws-shared", Label: "shared"},
+		{ConnName: "remote", ConnAbbr: "REM", WorkspaceID: "ws-other", Label: "other"},
+	}
+	m.Init(data)
+
+	spaces := m.GetAllSpaces()
+	if len(spaces) != 2 {
+		t.Fatalf("expected 2 unique spaces (dedup ws-shared), got %d", len(spaces))
+	}
+	// First occurrence of ws-shared (local) should be kept
+	if spaces[0].WsID != "ws-shared" {
+		t.Errorf("expected first space 'ws-shared', got '%s'", spaces[0].WsID)
+	}
+}
+
+// ─── Global Space Filter ───────────────────────────────────
+
+func TestGetFilteredAgents_GlobalSpaceFilter_IgnoresMachine(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+
+	// Old behavior: GetFilteredAgents("local", "ws-1") meant local ∩ ws-1
+	// New: ignores machine filter when space filter is active
+	agents := m.GetFilteredAgents("local", "ws-1")
+	// ws-1 only exists on local machine, so same 3 agents
+	if len(agents) != 3 {
+		t.Fatalf("expected 3 agents for ws-1, got %d", len(agents))
+	}
+	// All should have WorkspaceID ws-1 (not necessarily local anymore, but in this case they are)
+	for _, a := range agents {
+		if a.WsID != "ws-1" {
+			t.Errorf("expected ws-1, got %s", a.WsID)
+		}
+	}
+}
+
+// buildTestDataWithSharedWS returns data where the same wsID exists on multiple machines.
+func buildTestDataWithSharedWS() []types.UnifiedWorkspace {
+	return []types.UnifiedWorkspace{
+		{
+			ConnName: "local", ConnAbbr: "LCL", ConnAbbrColor: "#4ADE80",
+			WorkspaceID: "ws-shared", Label: "shared-proj",
+			Agents: []types.AgentInfo{
+				{Agent: "pi", Name: "local-a", AgentStatus: types.StatusWorking, PaneID: "p1", WorkspaceID: "ws-shared"},
+				{Agent: "cursor", Name: "local-b", AgentStatus: types.StatusBlocked, PaneID: "p2", WorkspaceID: "ws-shared"},
+			},
+		},
+		{
+			ConnName: "dev-server", ConnAbbr: "DEV", ConnAbbrColor: "#60A5FA",
+			WorkspaceID: "ws-shared", Label: "shared-proj",
+			Agents: []types.AgentInfo{
+				{Agent: "devin", Name: "remote-a", AgentStatus: types.StatusDone, PaneID: "p3", WorkspaceID: "ws-shared"},
+			},
+		},
+		{
+			ConnName: "dev-server", ConnAbbr: "DEV", ConnAbbrColor: "#60A5FA",
+			WorkspaceID: "ws-other", Label: "other",
+			Agents: []types.AgentInfo{
+				{Agent: "gemini", Name: "other-a", AgentStatus: types.StatusIdle, PaneID: "p4", WorkspaceID: "ws-other"},
+			},
+		},
+	}
+}
+
+func TestGetFilteredAgents_GlobalSpaceFilter_AcrossMachines(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestDataWithSharedWS())
+
+	// Space filter should return agents from ALL machines with matching wsID
+	agents := m.GetFilteredAgents("", "ws-shared")
+	if len(agents) != 3 {
+		t.Fatalf("expected 3 agents from ws-shared across both machines, got %d", len(agents))
+	}
+	// Verify both machines represented
+	seenLocal := false
+	seenDev := false
+	for _, a := range agents {
+		if a.ConnName == "local" {
+			seenLocal = true
+		}
+		if a.ConnName == "dev-server" {
+			seenDev = true
+		}
+	}
+	if !seenLocal {
+		t.Error("expected agent from local machine")
+	}
+	if !seenDev {
+		t.Error("expected agent from dev-server machine")
+	}
+}
+
+func TestGetFilteredAgents_GlobalSpaceFilter_WithMachineArgIgnored(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestDataWithSharedWS())
+
+	// When space filter is active, the machine argument is ignored
+	// Both of these should return the same 3 agents from ws-shared
+	agentsWithMachine := m.GetFilteredAgents("local", "ws-shared")
+	agentsWithout := m.GetFilteredAgents("", "ws-shared")
+	if len(agentsWithMachine) != len(agentsWithout) {
+		t.Errorf("machine arg should be ignored: got %d vs %d", len(agentsWithMachine), len(agentsWithout))
+	}
+}
+
+// ─── K11 Mode Status Filter ────────────────────────────────
+
+func TestGetFilteredAgents_K11ModeActive_FiltersIdleAndUnknown(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+	m.SetK11Mode("active")
+
+	agents := m.GetFilteredAgents("", "")
+	// buildTestData stats: blocked=2, done=2, working=3, idle=2, unknown=1
+	// active filters out idle(2) + unknown(1) → 7 remaining
+	if len(agents) != 7 {
+		t.Fatalf("expected 7 agents (without idle+unknown), got %d", len(agents))
+	}
+	for _, a := range agents {
+		if a.AgentStatus == types.StatusIdle || a.AgentStatus == types.StatusUnknown {
+			t.Errorf("k11Mode active should filter out %s, got agent %s", a.AgentStatus, a.PaneID)
+		}
+	}
+}
+
+func TestGetFilteredAgents_K11ModeActive_WithMachineFilter(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+	m.SetK11Mode("active")
+
+	// local machine has: ws-1 (1 working, 1 blocked, 1 idle) + ws-2 (1 done, 1 working)
+	// idle filtered out → 4 remaining
+	agents := m.GetFilteredAgents("local", "")
+	if len(agents) != 4 {
+		t.Fatalf("expected 4 local agents (without idle), got %d", len(agents))
+	}
+	for _, a := range agents {
+		if a.ConnName != "local" {
+			t.Errorf("expected local only, got %s", a.ConnName)
+		}
+		if a.AgentStatus == types.StatusIdle {
+			t.Errorf("k11Mode active should filter out idle, got %s", a.PaneID)
+		}
+	}
+}
+
+func TestGetFilteredAgents_K11ModeActive_WithSpaceFilter(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+	m.SetK11Mode("active")
+
+	// ws-1 has: 1 working, 1 blocked, 1 idle
+	// idle filtered out → 2 remaining
+	agents := m.GetFilteredAgents("", "ws-1")
+	if len(agents) != 2 {
+		t.Fatalf("expected 2 agents in ws-1 (without idle), got %d", len(agents))
+	}
+	for _, a := range agents {
+		if a.AgentStatus == types.StatusIdle {
+			t.Errorf("k11Mode active should filter out idle, got %s", a.PaneID)
+		}
+	}
+}
+
+func TestGetFilteredAgents_K11ModeDefault_ShowsAll(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+	// k11Mode defaults to empty = "all" behavior
+
+	agents := m.GetFilteredAgents("", "")
+	if len(agents) != 10 {
+		t.Fatalf("expected all 10 agents (k11Mode default), got %d", len(agents))
+	}
+}
+
+func TestSetK11Mode(t *testing.T) {
+	m := NewManager()
+	if m.k11Mode != "" {
+		t.Errorf("expected empty default, got '%s'", m.k11Mode)
+	}
+	m.SetK11Mode("active")
+	if m.k11Mode != "active" {
+		t.Errorf("expected 'active', got '%s'", m.k11Mode)
+	}
+	m.SetK11Mode("all")
+	if m.k11Mode != "all" {
+		t.Errorf("expected 'all', got '%s'", m.k11Mode)
+	}
+}

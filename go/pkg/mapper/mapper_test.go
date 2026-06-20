@@ -93,13 +93,16 @@ func TestNextMachine_Wraps(t *testing.T) {
 func TestNextMachine_ClearsSpace(t *testing.T) {
 	m := buildTestManager()
 	m.NextMachine() // → local
-	m.NextSpace()   // → ws-1
-	m.NextMachine() // → dev-server, should clear space
+	m.NextSpace()   // → ws-1, clears ConnName
+	m.NextMachine() // ConnName empty, picks first machine = local
 	if m.Mode != ModeMachine {
 		t.Errorf("expected ModeMachine, got %v", m.Mode)
 	}
 	if m.WsID != "" {
 		t.Errorf("expected WsID cleared, got %s", m.WsID)
+	}
+	if m.ConnName != "local" {
+		t.Errorf("expected ConnName 'local', got %s", m.ConnName)
 	}
 }
 
@@ -123,6 +126,9 @@ func TestNextSpace_FromMachine(t *testing.T) {
 	if m.WsID != "ws-1" {
 		t.Errorf("expected first space 'ws-1', got %s", m.WsID)
 	}
+	if m.ConnName != "" {
+		t.Errorf("expected empty ConnName (global space), got %s", m.ConnName)
+	}
 }
 
 func TestNextSpace_Cycle(t *testing.T) {
@@ -137,20 +143,27 @@ func TestNextSpace_Cycle(t *testing.T) {
 
 func TestNextSpace_Wraps(t *testing.T) {
 	m := buildTestManager()
-	m.NextMachine() // → local (2 spaces)
+	m.NextMachine() // → local (3 global spaces)
 	m.NextSpace()   // → ws-1
 	m.NextSpace()   // → ws-2
+	m.NextSpace()   // → ws-3
 	m.NextSpace()   // wraps → ws-1
 	if m.WsID != "ws-1" {
 		t.Errorf("expected wrap to 'ws-1', got %s", m.WsID)
 	}
 }
 
-func TestNextSpace_AllMode(t *testing.T) {
+func TestNextSpace_FromAllMode(t *testing.T) {
 	m := buildTestManager()
-	m.NextSpace() // no-op in ALL mode
-	if m.Mode != ModeAll {
-		t.Errorf("expected ModeAll unchanged, got %v", m.Mode)
+	m.NextSpace() // now works from ALL mode
+	if m.Mode != ModeSpace {
+		t.Errorf("expected ModeSpace, got %v", m.Mode)
+	}
+	if m.WsID != "ws-1" {
+		t.Errorf("expected first space 'ws-1', got %s", m.WsID)
+	}
+	if m.ConnName != "" {
+		t.Errorf("expected empty ConnName, got %s", m.ConnName)
 	}
 }
 
@@ -238,5 +251,166 @@ func TestRenderAll_AgentData(t *testing.T) {
 	}
 	if first.ConnName != "dev-server" {
 		t.Errorf("expected first from 'dev-server' (alphabetical order), got '%s'", first.ConnName)
+	}
+}
+
+// ─── K11 Mode ──────────────────────────────────────────────
+
+func TestK11Label_Default(t *testing.T) {
+	m := buildTestManager()
+	// K11Mode empty = "all" default
+	m.K11Mode = ""
+	keys := m.RenderAll()
+	all := keys[10].NavAll
+	if all == nil {
+		t.Fatal("K11 missing")
+	}
+	if all.Label != "ALL" {
+		t.Errorf("expected Label 'ALL', got '%s'", all.Label)
+	}
+}
+
+func TestK11Label_Active(t *testing.T) {
+	m := buildTestManager()
+	m.K11Mode = "active"
+	keys := m.RenderAll()
+	all := keys[10].NavAll
+	if all == nil {
+		t.Fatal("K11 missing")
+	}
+	if all.Label != "ACT" {
+		t.Errorf("expected Label 'ACT', got '%s'", all.Label)
+	}
+}
+
+// ─── Global Space ──────────────────────────────────────────
+
+// buildTestManagerWithSharedSpace returns a mapper with one workspace present
+// on both machines, to test global space filtering.
+func buildTestManagerWithSharedSpace() *Mapper {
+	sm := state.NewManager()
+	sm.Init([]types.UnifiedWorkspace{
+		{
+			ConnName: "local", ConnAbbr: "LCL", ConnAbbrColor: "#4ADE80",
+			WorkspaceID: "ws-shared", Label: "shared-proj",
+			Agents: []types.AgentInfo{
+				{Agent: "pi", Name: "local-a", AgentStatus: types.StatusWorking, PaneID: "p-local", WorkspaceID: "ws-shared"},
+				{Agent: "cursor", Name: "local-b", AgentStatus: types.StatusBlocked, PaneID: "p-local2", WorkspaceID: "ws-shared"},
+			},
+		},
+		{
+			ConnName: "dev-server", ConnAbbr: "DEV", ConnAbbrColor: "#60A5FA",
+			WorkspaceID: "ws-shared", Label: "shared-proj",
+			Agents: []types.AgentInfo{
+				{Agent: "devin", Name: "remote-a", AgentStatus: types.StatusDone, PaneID: "p-remote", WorkspaceID: "ws-shared"},
+			},
+		},
+		{
+			ConnName: "dev-server", ConnAbbr: "DEV", ConnAbbrColor: "#60A5FA",
+			WorkspaceID: "ws-other", Label: "other",
+			Agents: []types.AgentInfo{
+				{Agent: "gemini", Name: "other-a", AgentStatus: types.StatusIdle, PaneID: "p-other", WorkspaceID: "ws-other"},
+			},
+		},
+	})
+	return New(sm)
+}
+
+func TestNextSpace_Global_SharedWorkspaceAcrossMachines(t *testing.T) {
+	m := buildTestManagerWithSharedSpace()
+	// From ALL mode, enter space mode
+	m.NextSpace()
+	if m.Mode != ModeSpace {
+		t.Errorf("expected ModeSpace, got %v", m.Mode)
+	}
+	// First space in global order: "ws-shared" appears first in unified slice
+	if m.WsID != "ws-shared" {
+		t.Errorf("expected first space 'ws-shared', got '%s'", m.WsID)
+	}
+	if m.ConnName != "" {
+		t.Errorf("expected empty ConnName, got '%s'", m.ConnName)
+	}
+	// NextSpace → ws-other
+	m.NextSpace()
+	if m.WsID != "ws-other" {
+		t.Errorf("expected 'ws-other', got '%s'", m.WsID)
+	}
+	// NextSpace wraps → ws-shared
+	m.NextSpace()
+	if m.WsID != "ws-shared" {
+		t.Errorf("expected wrap to 'ws-shared', got '%s'", m.WsID)
+	}
+}
+
+func TestRenderAll_GlobalSpaceFilter_ShowsAgentsFromAllMachines(t *testing.T) {
+	m := buildTestManagerWithSharedSpace()
+	m.NextSpace() // → ws-shared, global space mode
+	keys := m.RenderAll()
+	agentCount := 0
+	for i := 0; i < 10; i++ {
+		if keys[i].Agent != nil {
+			agentCount++
+			// Agents should have different connNames (global space)
+			t.Logf("agent %d: connName=%s, name=%s", i, keys[i].Agent.ConnName, keys[i].Agent.Alias)
+		}
+	}
+	// ws-shared has 3 agents: 2 from local + 1 from dev-server
+	if agentCount != 3 {
+		t.Errorf("expected 3 agents from ws-shared across both machines, got %d", agentCount)
+	}
+	// Verify both machines represented
+	seenLocal := false
+	seenDev := false
+	for i := 0; i < 10; i++ {
+		if keys[i].Agent != nil {
+			if keys[i].Agent.ConnName == "local" {
+				seenLocal = true
+			}
+			if keys[i].Agent.ConnName == "dev-server" {
+				seenDev = true
+			}
+		}
+	}
+	if !seenLocal {
+		t.Error("expected agent from local machine in global space filter")
+	}
+	if !seenDev {
+		t.Error("expected agent from dev-server machine in global space filter")
+	}
+}
+
+func TestK13_SpaceCountIsGlobal(t *testing.T) {
+	m := buildTestManagerWithSharedSpace()
+	keys := m.RenderAll()
+	spc := keys[12].NavSpc
+	if spc == nil {
+		t.Fatal("K13 missing")
+	}
+	// 2 unique spaces globally: ws-shared (labeled shared-proj) + ws-other (labeled other)
+	if spc.Count != 2 {
+		t.Errorf("expected 2 global spaces, got %d", spc.Count)
+	}
+	// First space label
+	if spc.NextLabel != "shared-proj" {
+		t.Errorf("expected first space label 'shared-proj', got '%s'", spc.NextLabel)
+	}
+}
+
+func TestK12_K13_Independent_MutuallyExclusive(t *testing.T) {
+	m := buildTestManagerWithSharedSpace()
+	// Start ALL → K12 enters machine mode
+	m.NextMachine()
+	if m.Mode != ModeMachine || m.ConnName == "" || m.WsID != "" {
+		t.Fatalf("expected Machine mode with connName set, wsID empty")
+	}
+	// K13 from machine mode enters space mode, clears connName
+	m.NextSpace()
+	if m.Mode != ModeSpace || m.ConnName != "" || m.WsID == "" {
+		t.Fatalf("expected Space mode with wsID set, connName empty")
+	}
+	// K12 from space mode enters machine mode, clears wsID
+	m.NextMachine()
+	if m.Mode != ModeMachine || m.ConnName == "" || m.WsID != "" {
+		t.Fatalf("expected Machine mode with connName set, wsID empty")
 	}
 }

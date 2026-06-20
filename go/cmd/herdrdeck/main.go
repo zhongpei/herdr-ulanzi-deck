@@ -172,6 +172,11 @@ func runMain(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Warn().Err(err).Msg("config load issue, using defaults")
 	}
+	if cfg.K11Mode == "" {
+		cfg.K11Mode = "all"
+	}
+	sm.SetK11Mode(cfg.K11Mode)
+	bm.K11Mode = cfg.K11Mode
 	bridge = herdr.NewBridge()
 
 	// Cleanup SSH tunnels on exit

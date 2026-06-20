@@ -20,6 +20,7 @@ type Manager struct {
 	memoryPercent float64
 	listeners     []func(event string, data any)
 	statusSince   map[string]time.Time // "connName|paneID" → when current status started
+	k11Mode       string               // "all" or "active"
 }
 
 // NewManager creates an empty state manager.
@@ -125,8 +126,8 @@ func (m *Manager) GetAllAgents() []types.AgentInfo {
 func (m *Manager) GetFilteredAgents(filterConnName, filterWsID string) []types.AgentInfo {
 	agents := m.GetAllAgents()
 
-	// Apply machine filter
-	if filterConnName != "" {
+	// Apply machine filter (only when no global space filter)
+	if filterConnName != "" && filterWsID == "" {
 		var filtered []types.AgentInfo
 		for _, a := range agents {
 			if a.ConnName == filterConnName {
@@ -136,11 +137,24 @@ func (m *Manager) GetFilteredAgents(filterConnName, filterWsID string) []types.A
 		agents = filtered
 	}
 
-	// Apply space filter (intersection with machine filter)
+	// Apply global space filter (independent of machine)
 	if filterWsID != "" {
 		var filtered []types.AgentInfo
 		for _, a := range agents {
 			if a.WsID == filterWsID {
+				filtered = append(filtered, a)
+			}
+		}
+		agents = filtered
+	}
+
+	// Apply K11 mode status filter
+	if m.k11Mode == "active" {
+		var filtered []types.AgentInfo
+		for _, a := range agents {
+			if a.AgentStatus == types.StatusBlocked ||
+				a.AgentStatus == types.StatusWorking ||
+				a.AgentStatus == types.StatusDone {
 				filtered = append(filtered, a)
 			}
 		}
@@ -194,6 +208,29 @@ func (m *Manager) GetSpaces(connName string) []types.SpaceRef {
 		}
 	}
 	return spaces
+}
+
+// GetAllSpaces returns unique workspace references across ALL machines.
+func (m *Manager) GetAllSpaces() []types.SpaceRef {
+	var spaces []types.SpaceRef
+	seen := make(map[string]bool)
+	for _, ws := range m.unified {
+		if seen[ws.WorkspaceID] {
+			continue
+		}
+		seen[ws.WorkspaceID] = true
+		spaces = append(spaces, types.SpaceRef{
+			WsID:  ws.WorkspaceID,
+			Label: ws.Label,
+		})
+	}
+	return spaces
+}
+
+// SetK11Mode sets the K11 display mode.
+// "all" = show all agents (default), "active" = only BLOCKED/WORKING/DONE.
+func (m *Manager) SetK11Mode(mode string) {
+	m.k11Mode = mode
 }
 
 // SetSysStats updates the latest system CPU/memory percentages.
