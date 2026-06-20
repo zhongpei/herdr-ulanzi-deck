@@ -40,7 +40,7 @@ func (m *Manager) Init(unified []types.UnifiedWorkspace) {
 
 	for _, ws := range unified {
 		for _, a := range ws.Agents {
-			key := a.ConnName + "|" + a.PaneID
+			key := ws.ConnName + "|" + a.PaneID
 			oldStatus, exists := old[key]
 			if !exists || string(oldStatus) != string(a.AgentStatus) {
 				// New agent or status changed → reset timer
@@ -64,7 +64,7 @@ func (m *Manager) buildAgentStatusMap() map[string]types.AgentStatus {
 	result := make(map[string]types.AgentStatus)
 	for _, ws := range m.unified {
 		for _, a := range ws.Agents {
-			key := a.ConnName + "|" + a.PaneID
+			key := ws.ConnName + "|" + a.PaneID
 			result[key] = a.AgentStatus
 		}
 	}

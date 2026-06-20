@@ -2,6 +2,7 @@ package state
 
 import (
 	"testing"
+	"time"
 
 	"github.com/herdr-deck/herdrdeck/pkg/types"
 )
@@ -271,5 +272,174 @@ func TestTruncateTo10(t *testing.T) {
 	result := m.GetFilteredAgents("", "")
 	if len(result) > 10 {
 		t.Errorf("expected max 10 agents, got %d", len(result))
+	}
+}
+
+// ─── Duration tracking ──────────────────────────────────────
+
+func TestFormatDuration_Values(t *testing.T) {
+	tests := []struct {
+		minutes int
+		want    string
+	}{
+		{0, "0m"},
+		{1, "1m"},
+		{45, "45m"},
+		{59, "59m"},
+		{60, "1h00m"},
+		{90, "1h30m"},
+		{1439, "23h59m"},
+		{1440, "1d0h"},
+		{1500, "1d1h"},
+		{3000, "2d2h"},
+	}
+	for _, tt := range tests {
+		d := time.Duration(tt.minutes) * time.Minute
+		got := formatDuration(d)
+		if got != tt.want {
+			t.Errorf("formatDuration(%dm) = %q, want %q", tt.minutes, got, tt.want)
+		}
+	}
+}
+
+func TestFormatAgentDuration_Shows0mImmediately(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+
+	// Agent p1 is in workspace ws-1 which belongs to "local" machine
+	dur := m.FormatAgentDuration("local", "p1")
+	if dur != "0m" {
+		t.Errorf("fresh agent should show 0m, got %s", dur)
+	}
+
+	// Unknown agent returns "0m" too
+	dur = m.FormatAgentDuration("nowhere", "nope")
+	if dur != "0m" {
+		t.Errorf("unknown agent should show 0m, got %s", dur)
+	}
+}
+
+func TestFormatAgentDuration_Accumulates(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+
+	// Manually wind the clock forward for agent p1
+	key := "local|p1"
+	m.statusSince[key] = time.Now().Add(-5 * time.Minute)
+
+	dur := m.FormatAgentDuration("local", "p1")
+	if dur != "5m" {
+		t.Errorf("expected 5m, got %s", dur)
+	}
+
+	// Winding to 1 hour
+	m.statusSince[key] = time.Now().Add(-90 * time.Minute)
+	dur = m.FormatAgentDuration("local", "p1")
+	if dur != "1h30m" {
+		t.Errorf("expected 1h30m, got %s", dur)
+	}
+
+	// Winding to 2 days
+	m.statusSince[key] = time.Now().Add(-50 * time.Hour)
+	dur = m.FormatAgentDuration("local", "p1")
+	if dur != "2d2h" {
+		t.Errorf("expected 2d2h, got %s", dur)
+	}
+
+	// Agent p2 in different machine (dev-server)
+	key2 := "dev-server|p6"
+	m.statusSince[key2] = time.Now().Add(-10 * time.Minute)
+	dur = m.FormatAgentDuration("dev-server", "p6")
+	if dur != "10m" {
+		t.Errorf("expected 10m, got %s", dur)
+	}
+}
+
+func TestAgentDuration_StatusChangeResetsTimer(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+
+	// Wind p1's timer forward
+	key := "local|p1"
+	m.statusSince[key] = time.Now().Add(-30 * time.Minute)
+	if m.FormatAgentDuration("local", "p1") != "30m" {
+		t.Fatal("sanity check: expected 30m")
+	}
+
+	// Simulate a status change: p1 goes from working → done
+	data := buildTestData()
+	for i := range data {
+		if data[i].ConnName == "local" {
+			for j := range data[i].Agents {
+				if data[i].Agents[j].PaneID == "p1" {
+					data[i].Agents[j].AgentStatus = types.StatusDone
+					break
+				}
+			}
+		}
+	}
+	m.Init(data)
+
+	dur := m.FormatAgentDuration("local", "p1")
+	if dur != "0m" {
+		t.Errorf("expected 0m after status change, got %s", dur)
+	}
+
+	// Unchanged agent should keep its timer
+	dur = m.FormatAgentDuration("local", "p2") // still blocked
+	if dur != "0m" {
+		t.Errorf("expected 0m for unchanged agent p2, got %s", dur)
+	}
+}
+
+func TestAgentDuration_StaleAgentRemoved(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+
+	// Wind p1's timer
+	key := "local|p1"
+	m.statusSince[key] = time.Now().Add(-10 * time.Minute)
+	if m.FormatAgentDuration("local", "p1") != "10m" {
+		t.Fatal("sanity check: expected 10m")
+	}
+
+	// Simulate p1 being removed (agent no longer in any workspace)
+	data := buildTestData()
+	for i := range data {
+		if data[i].ConnName == "local" {
+			for j := range data[i].Agents {
+				if data[i].Agents[j].PaneID == "p1" {
+					data[i].Agents = append(data[i].Agents[:j], data[i].Agents[j+1:]...)
+					break
+				}
+			}
+		}
+	}
+	m.Init(data)
+
+	// p1's timer should be gone, FormatAgentDuration returns "0m" (not-found)
+	dur := m.FormatAgentDuration("local", "p1")
+	if dur != "0m" {
+		t.Errorf("expected 0m for removed agent, got %s", dur)
+	}
+}
+
+func TestAgentDuration_CrossMachineKeys(t *testing.T) {
+	m := NewManager()
+	m.Init(buildTestData())
+
+	// Same pane ID on different machines should have independent timers
+	// ws-1 (local) has no pane called "dup", ws-3 (dev-server) has no "dup" either
+	// So this tests that keys don't collide
+	keyLocal := "local|dup"
+	keyDev := "dev-server|dup"
+	m.statusSince[keyLocal] = time.Now().Add(-5 * time.Minute)
+	m.statusSince[keyDev] = time.Now().Add(-10 * time.Minute)
+
+	if m.FormatAgentDuration("local", "dup") != "5m" {
+		t.Errorf("expected 5m for local|dup")
+	}
+	if m.FormatAgentDuration("dev-server", "dup") != "10m" {
+		t.Errorf("expected 10m for dev-server|dup")
 	}
 }
