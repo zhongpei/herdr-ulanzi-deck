@@ -117,7 +117,9 @@ Entry point for the Go binary.
 - `GetFilteredAgents(connName, wsId)` → filter, sort by status priority, return top 10
 - `GetMachines()` → unique machine references in connection order
 - `GetSpaces(connName)` → unique workspace references for a given machine
-- `SetK11Mode(mode)` → sets K11 filter mode (`"all"` = show all, `"active"` = only BLOCKED/WORKING/DONE)
+- `SetK11Toggle(enabled)` → enable/disable K11 ALL↔ACTIVE toggle
+- `ToggleK11Filter()` → toggle K11 filtered state on/off
+- `IsK11Filtered()` → returns true if K11 is in ACTIVE (filtered) mode
 - `GetAllSpaces()` → unique workspace labels across ALL machines (deduplicated by label, not wsID)
 - `ComputeStats()` → global agent state tallies (D/I/W/B/?)
 

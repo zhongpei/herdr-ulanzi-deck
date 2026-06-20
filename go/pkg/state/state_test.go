@@ -577,28 +577,30 @@ func TestGetFilteredAgents_GlobalSpaceFilter_WithMachineArgIgnored(t *testing.T)
 
 // ─── K11 Mode Status Filter ────────────────────────────────
 
-func TestGetFilteredAgents_K11ModeActive_FiltersIdleAndUnknown(t *testing.T) {
+func TestK11Toggle_FiltersIdleAndUnknown(t *testing.T) {
 	m := NewManager()
 	m.Init(buildTestData())
-	m.SetK11Mode("active")
+	m.SetK11Toggle(true)
+	m.ToggleK11Filter()
 
 	agents := m.GetFilteredAgents("", "")
 	// buildTestData stats: blocked=2, done=2, working=3, idle=2, unknown=1
-	// active filters out idle(2) + unknown(1) → 7 remaining
+	// filtered removes idle(2) + unknown(1) → 7 remaining
 	if len(agents) != 7 {
 		t.Fatalf("expected 7 agents (without idle+unknown), got %d", len(agents))
 	}
 	for _, a := range agents {
 		if a.AgentStatus == types.StatusIdle || a.AgentStatus == types.StatusUnknown {
-			t.Errorf("k11Mode active should filter out %s, got agent %s", a.AgentStatus, a.PaneID)
+			t.Errorf("K11 filtered should remove %s, got agent %s", a.AgentStatus, a.PaneID)
 		}
 	}
 }
 
-func TestGetFilteredAgents_K11ModeActive_WithMachineFilter(t *testing.T) {
+func TestK11Toggle_Filters_WithMachineFilter(t *testing.T) {
 	m := NewManager()
 	m.Init(buildTestData())
-	m.SetK11Mode("active")
+	m.SetK11Toggle(true)
+	m.ToggleK11Filter()
 
 	// local machine has: ws-1 (1 working, 1 blocked, 1 idle) + ws-2 (1 done, 1 working)
 	// idle filtered out → 4 remaining
@@ -611,15 +613,16 @@ func TestGetFilteredAgents_K11ModeActive_WithMachineFilter(t *testing.T) {
 			t.Errorf("expected local only, got %s", a.ConnName)
 		}
 		if a.AgentStatus == types.StatusIdle {
-			t.Errorf("k11Mode active should filter out idle, got %s", a.PaneID)
+			t.Errorf("K11 filtered should remove idle, got %s", a.PaneID)
 		}
 	}
 }
 
-func TestGetFilteredAgents_K11ModeActive_WithSpaceFilter(t *testing.T) {
+func TestK11Toggle_Filters_WithSpaceFilter(t *testing.T) {
 	m := NewManager()
 	m.Init(buildTestData())
-	m.SetK11Mode("active")
+	m.SetK11Toggle(true)
+	m.ToggleK11Filter()
 
 	// main-proj has: 1 working, 1 blocked, 1 idle
 	// idle filtered out → 2 remaining
@@ -629,33 +632,50 @@ func TestGetFilteredAgents_K11ModeActive_WithSpaceFilter(t *testing.T) {
 	}
 	for _, a := range agents {
 		if a.AgentStatus == types.StatusIdle {
-			t.Errorf("k11Mode active should filter out idle, got %s", a.PaneID)
+			t.Errorf("K11 filtered should remove idle, got %s", a.PaneID)
 		}
 	}
 }
 
-func TestGetFilteredAgents_K11ModeDefault_ShowsAll(t *testing.T) {
+func TestK11Toggle_DefaultNotFiltered(t *testing.T) {
 	m := NewManager()
 	m.Init(buildTestData())
-	// k11Mode defaults to empty = "all" behavior
+	// toggle enabled but not activated → no filtering
+	m.SetK11Toggle(true)
 
 	agents := m.GetFilteredAgents("", "")
 	if len(agents) != 10 {
-		t.Fatalf("expected all 10 agents (k11Mode default), got %d", len(agents))
+		t.Fatalf("expected all 10 agents (toggle not activated), got %d", len(agents))
 	}
 }
 
-func TestSetK11Mode(t *testing.T) {
+func TestK11Toggle_ToggleOnOff(t *testing.T) {
 	m := NewManager()
-	if m.k11Mode != "" {
-		t.Errorf("expected empty default, got '%s'", m.k11Mode)
+	m.SetK11Toggle(true)
+
+	if m.IsK11Filtered() {
+		t.Error("expected not filtered initially")
 	}
-	m.SetK11Mode("active")
-	if m.k11Mode != "active" {
-		t.Errorf("expected 'active', got '%s'", m.k11Mode)
+	m.ToggleK11Filter()
+	if !m.IsK11Filtered() {
+		t.Error("expected filtered after toggle")
 	}
-	m.SetK11Mode("all")
-	if m.k11Mode != "all" {
-		t.Errorf("expected 'all', got '%s'", m.k11Mode)
+	m.ToggleK11Filter()
+	if m.IsK11Filtered() {
+		t.Error("expected not filtered after second toggle")
 	}
+}
+
+func TestK11Toggle_DisabledByDefault(t *testing.T) {
+	m := NewManager()
+	// k11Toggle defaults to false — no filtering unless ToggleK11Filter is called
+	if m.IsK11Filtered() {
+		t.Error("expected not filtered initially")
+	}
+	// calling ToggleK11Filter still works mechanically regardless of k11Toggle
+	m.ToggleK11Filter()
+	if !m.IsK11Filtered() {
+		t.Error("expected filtered after ToggleK11Filter")
+	}
+	// The k11Toggle flag only controls whether the UI calls ToggleK11Filter
 }

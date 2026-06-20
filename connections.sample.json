@@ -1,5 +1,5 @@
 {
-  "k11Mode": "all",
+  "k11Toggle": false,
   "connections": [
     {
       "name": "local",

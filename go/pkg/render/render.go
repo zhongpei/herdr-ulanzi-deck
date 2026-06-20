@@ -153,18 +153,27 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 
 // ─── ALL button (K11) ──────────────────────────────────────
 func (r *Renderer) RenderNavAll(d types.NavAllData) string {
-	fill := "#3a3a3a"
-	if d.Active {
-		fill = "#4A90D9"
+	var fill string
+	switch {
+	case !d.Active:
+		fill = "#3a3a3a" // inactive
+	case d.Filtered:
+		fill = "#E67E22" // active + filtered → amber
+	default:
+		fill = "#4A90D9" // active + unfiltered → blue
+	}
+	label := d.Label
+	if label == "" {
+		label = "ALL"
 	}
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="%s"/>
   <text x="100" y="115" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="36" font-weight="800">ALL</text>
+        font-family="sans-serif" font-size="36" font-weight="800">%s</text>
   <rect x="155" y="178" width="40" height="18" rx="4" fill="#222" opacity="0.7"/>
   <text x="175" y="192" text-anchor="middle" fill="#00D084"
         font-family="sans-serif" font-size="16" font-weight="700">Go</text>
-</svg>`, fill)
+</svg>`, fill, label)
 	return toDataURI(svg)
 }
 

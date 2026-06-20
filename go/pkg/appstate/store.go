@@ -64,6 +64,16 @@ func (s *Store) NextSpace() {
 	s.dirty = true
 }
 
+func (s *Store) ToggleK11Filter() {
+	s.sm.ToggleK11Filter()
+	s.mapper.K11Filtered = s.sm.IsK11Filtered()
+	s.dirty = true
+}
+
+func (s *Store) IsK11Filtered() bool {
+	return s.sm.IsK11Filtered()
+}
+
 // RefreshHerdrData replaces the unified workspace tree and marks dirty.
 func (s *Store) RefreshHerdrData(unified []types.UnifiedWorkspace) {
 	s.sm.Init(unified)
@@ -77,7 +87,8 @@ type Snapshot struct {
 	TopAgents     []types.AgentInfo
 	Mode          mapper.FilterMode
 	ConnName      string
-	WsLabel       string // current space label filter (not wsID, matches across machines)
+	WsLabel       string // current space label filter
+	K11Filtered   bool   // current K11 toggle state
 	Stats         types.AgentStats
 	CPUPercent    float64
 	MemoryPercent float64
@@ -93,6 +104,7 @@ func (s *Store) Capture() *Snapshot {
 		Mode:          s.mapper.Mode,
 		ConnName:      s.mapper.ConnName,
 		WsLabel:       s.mapper.WsLabel,
+		K11Filtered:   s.mapper.K11Filtered,
 		Stats:         s.sm.ComputeStats(),
 		CPUPercent:    cpu,
 		MemoryPercent: mem,
@@ -150,7 +162,11 @@ func (s *Snapshot) visualHash() string {
 		}
 		fp += "|" + a.Name + "|" + a.ConnName + "|" + a.WsLabel + "\n"
 	}
-	fp += "M" + itoa(int(s.Mode)) + "|" + s.ConnName + "|" + s.WsLabel + "\n"
+	filt := "0"
+	if s.K11Filtered {
+		filt = "1"
+	}
+	fp += "M" + itoa(int(s.Mode)) + "|" + s.ConnName + "|" + s.WsLabel + "|" + filt + "\n"
 	fp += "S" + itoa(s.Stats.Done) + itoa(s.Stats.Idle) +
 		itoa(s.Stats.Working) + itoa(s.Stats.Blocked) + itoa(s.Stats.Unknown)
 	cpuStr := fmt.Sprintf("%.1f", s.CPUPercent)

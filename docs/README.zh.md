@@ -101,7 +101,7 @@ cp connections.sample.json ~/.config/herdr-deck/connections.json
 
 ```json
 {
-  "k11Mode": "all",
+  "k11Toggle": true,
   "connections": [
     {
       "name": "local",
@@ -123,7 +123,7 @@ cp connections.sample.json ~/.config/herdr-deck/connections.json
 }
 ```
 
-`k11Mode` 可选值：`"all"`（默认，显示全部 agent）、`"active"`（仅显示 BLOCKED/WORKING/DONE）。
+`k11Toggle` 设为 `true` 时，K11 按钮可在 ALL（显示全部）和 ACTIVE（仅 BLOCKED/WORKING/DONE）间切换。颜色：蓝色=ALL，琥珀色=ACTIVE。
 
 样例文件在 [`connections.sample.json`](../connections.sample.json)。
 
@@ -134,7 +134,7 @@ cp connections.sample.json ~/.config/herdr-deck/connections.json
 | 按键 | 功能 |
 |-----|------|
 | K1-K10 | Agent 状态（优先级排序） |
-| K11 | **ALL** — 全部机器（k11Mode=active 时仅显示 BLOCKED/WORKING/DONE） |
+| K11 | **ALL / ACTIVE** — 全部机器。`k11Toggle=true` 时可在 ALL↔ACTIVE 间切换 |
 | K12 | **机器循环** — 切换机器 |
 | K13 | **Space 循环（全局）** — 按 workspace 标签全局过滤，不限于当前机器 |
 | K14 | **全局统计** — D / I / W / B / ? |

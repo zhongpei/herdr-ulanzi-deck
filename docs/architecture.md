@@ -77,7 +77,7 @@ Unix Socket                     Unix Socket
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `k11Mode` | `"all"` \| `"active"` | `"all"` | K11 ALL button mode. `"all"` shows all agents; `"active"` filters to only BLOCKED/WORKING/DONE |
+| `k11Toggle` | bool | `false` | Enable K11 ALL↔ACTIVE toggle. When `true`, pressing K11 toggles between showing all agents and showing only BLOCKED/WORKING/DONE |
 
 ### 1.2 Protocols
 
@@ -127,7 +127,7 @@ row2:  K11    K12    K13    [K14  wide]    ← Navigation + stats
 | Key | Function | Description |
 |-----|----------|-------------|
 | K1-K10 | Agent status | Top 10 agents by priority. BLOCKED > DONE > WORKING > IDLE > UNKNOWN |
-| K11 | ALL mode | Show all agents (all) or only BLOCKED/WORKING/DONE (active). Active=blue, inactive=gray. Mode set via `k11Mode` in config |
+| K11 | ALL / ACTIVE | Show all agents (ALL) or only BLOCKED/WORKING/DONE (ACT). Blue=ALL, amber=ACTIVE, gray=inactive. Toggle enabled via `k11Toggle` in config |
 | K12 | Machine cycle | Switch to next machine (LCL→DEV→PRD→…). Clears space filter |
 | K13 | Space cycle | Switch to next workspace globally (all machines). Clears machine filter. Label-based matching |
 | K14 | Global stats | Cross-machine agent counts (D/I/W/B/?) |
@@ -193,15 +193,17 @@ row2:  K11    K12    K13    [K14  wide]    ← Navigation + stats
 
 ### 3.2 Navigation Keys (K11-K13)
 
-**K11 — ALL / ACT:**
+**K11 — ALL / ACTIVE:**
 
 ```
 ┌──────────┐
 │          │
-│   ALL    │  ← 36px BOLD white, blue bg when active, gray when inactive
-│   /ACT   │  Label = "ALL" (k11Mode=all) or "ACT" (k11Mode=active)
+│   ALL    │  ← 36px BOLD white. Blue bg (ALL), amber bg (ACTIVE), gray (inactive)
+│   /ACT   │  Label="ALL" (unfiltered, blue) or "ACT" (filtered, amber)
 └──────────┘
 ```
+
+Toggle enabled via `k11Toggle: true` in config. Each press switches between ALL and ACTIVE mode.
 
 **K12 — Machine cycle:**
 
@@ -254,9 +256,9 @@ SVG example:
 
 | Mode | K11(ALL) | K12(Machine) | K13(Space) | Content |
 |------|----------|-------------|------------|---------|
-| ALL | Blue highlight (ALL/ACT) | Gray | Gray | All machines, top 10 (k11Mode=active filters idle+unknown) |
+| ALL | Blue (unfiltered) / Amber (filtered) | Gray | Gray | All machines, top 10. Filtered mode shows only BLOCKED/WORKING/DONE |
 | Machine | — | Machine color bg | Gray | That machine's top 10 |
-| Space | — | Machine color bg | Space name | Machine + space top 10 |
+| Space | — | Gray (no machine selected) | Space label bg | All machines, filtered by space label. K11 filtered state applies when active |
 
 ### Sort
 

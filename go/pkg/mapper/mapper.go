@@ -26,11 +26,12 @@ const (
 
 // Mapper holds filter state and a reference to the state manager.
 type Mapper struct {
-	state    *state.Manager
-	Mode     FilterMode
-	ConnName string // current machine filter
-	WsLabel  string // current space label filter (not wsID — labels match across machines)
-	K11Mode  string // "all" or "active"
+	state       *state.Manager
+	Mode        FilterMode
+	ConnName    string // current machine filter
+	WsLabel     string // current space label filter (not wsID — labels match across machines)
+	K11Toggle   bool   // true = K11 toggles ALL↔ACTIVE
+	K11Filtered bool   // current toggle state mirrored from state.Manager
 }
 
 // New creates a Mapper in ALL mode.
@@ -150,9 +151,10 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 
 	curMachine := machineCurrent(machines, machineIdx)
 
-	// K11 button label depends on mode
+	// K11 button label and filter state
+	k11Filtered := m.K11Filtered
 	k11Label := "ALL"
-	if m.K11Mode == "active" {
+	if k11Filtered {
 		k11Label = "ACT"
 	}
 	isMachineMode := m.Mode == ModeMachine
@@ -163,6 +165,7 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 			Type:          "navAll",
 			Label:         k11Label,
 			Active:        m.Mode == ModeAll,
+			Filtered:      k11Filtered,
 			CPUPercent:    cpuPct,
 			MemoryPercent: memPct,
 		},

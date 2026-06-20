@@ -107,7 +107,10 @@ func onKeyDown(msg deck.Message) {
 	switch msg.Key {
 	case "0_2", "0_3":
 		st.SetAll()
-		log.Debug().Str("key", msg.Key).Msg("nav: show all")
+		if bm.K11Toggle {
+			st.ToggleK11Filter()
+		}
+		log.Debug().Str("key", msg.Key).Bool("filtered", st.IsK11Filtered()).Msg("nav: show all")
 	case "1_2", "1_3":
 		st.NextMachine()
 		log.Debug().Str("key", msg.Key).Msg("nav: next machine")
@@ -172,11 +175,8 @@ func runMain(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Warn().Err(err).Msg("config load issue, using defaults")
 	}
-	if cfg.K11Mode == "" {
-		cfg.K11Mode = "all"
-	}
-	sm.SetK11Mode(cfg.K11Mode)
-	bm.K11Mode = cfg.K11Mode
+	sm.SetK11Toggle(cfg.K11Toggle)
+	bm.K11Toggle = cfg.K11Toggle
 	bridge = herdr.NewBridge()
 
 	// Cleanup SSH tunnels on exit

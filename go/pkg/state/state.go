@@ -20,7 +20,8 @@ type Manager struct {
 	memoryPercent float64
 	listeners     []func(event string, data any)
 	statusSince   map[string]time.Time // "connName|paneID" → when current status started
-	k11Mode       string               // "all" or "active"
+	k11Filtered   bool                 // current K11 toggle state (true = filter IDLE/UNKNOWN)
+	k11Toggle     bool                 // whether K11 toggle is enabled
 }
 
 // NewManager creates an empty state manager.
@@ -150,8 +151,8 @@ func (m *Manager) GetFilteredAgents(filterConnName, filterWsLabel string) []type
 		agents = filtered
 	}
 
-	// Apply K11 mode status filter
-	if m.k11Mode == "active" {
+	// Apply K11 toggle status filter
+	if m.k11Filtered {
 		var filtered []types.AgentInfo
 		for _, a := range agents {
 			if a.AgentStatus == types.StatusBlocked ||
@@ -230,10 +231,19 @@ func (m *Manager) GetAllSpaces() []types.SpaceRef {
 	return spaces
 }
 
-// SetK11Mode sets the K11 display mode.
-// "all" = show all agents (default), "active" = only BLOCKED/WORKING/DONE.
-func (m *Manager) SetK11Mode(mode string) {
-	m.k11Mode = mode
+// SetK11Toggle enables or disables K11 ALL↔ACTIVE toggling.
+func (m *Manager) SetK11Toggle(enabled bool) {
+	m.k11Toggle = enabled
+}
+
+// ToggleK11Filter toggles the K11 filtered state on/off.
+func (m *Manager) ToggleK11Filter() {
+	m.k11Filtered = !m.k11Filtered
+}
+
+// IsK11Filtered returns true if K11 is in ACTIVE (filtered) mode.
+func (m *Manager) IsK11Filtered() bool {
+	return m.k11Filtered
 }
 
 // SetSysStats updates the latest system CPU/memory percentages.

@@ -254,12 +254,12 @@ func TestRenderAll_AgentData(t *testing.T) {
 	}
 }
 
-// ─── K11 Mode ──────────────────────────────────────────────
+// ─── K11 Toggle ───────────────────────────────────────────
 
 func TestK11Label_Default(t *testing.T) {
 	m := buildTestManager()
-	// K11Mode empty = "all" default
-	m.K11Mode = ""
+	// K11Filtered = false → label ALL
+	m.K11Filtered = false
 	keys := m.RenderAll()
 	all := keys[10].NavAll
 	if all == nil {
@@ -268,11 +268,14 @@ func TestK11Label_Default(t *testing.T) {
 	if all.Label != "ALL" {
 		t.Errorf("expected Label 'ALL', got '%s'", all.Label)
 	}
+	if all.Filtered {
+		t.Error("expected Filtered=false")
+	}
 }
 
-func TestK11Label_Active(t *testing.T) {
+func TestK11Label_Filtered(t *testing.T) {
 	m := buildTestManager()
-	m.K11Mode = "active"
+	m.K11Filtered = true
 	keys := m.RenderAll()
 	all := keys[10].NavAll
 	if all == nil {
@@ -280,6 +283,9 @@ func TestK11Label_Active(t *testing.T) {
 	}
 	if all.Label != "ACT" {
 		t.Errorf("expected Label 'ACT', got '%s'", all.Label)
+	}
+	if !all.Filtered {
+		t.Error("expected Filtered=true")
 	}
 }
 

@@ -113,12 +113,13 @@ type AgentKeyData struct {
 	StatusDuration string `json:"statusDuration"` // formatted: "45m", "1h02m", "2d"
 }
 
-// NavAllData describes the K11 ALL button with system stats overlay.
+// NavAllData describes the K11 ALL/ACT button with system stats overlay.
 type NavAllData struct {
 	KeyID         string  `json:"keyId"`
 	Type          string  `json:"type"`
 	Label         string  `json:"label"`
 	Active        bool    `json:"active"`
+	Filtered      bool    `json:"filtered"` // true = ACTIVE mode (only BLOCKED/WORKING/DONE)
 	CPUPercent    float64 `json:"cpuPercent"`
 	MemoryPercent float64 `json:"memPercent"`
 }
