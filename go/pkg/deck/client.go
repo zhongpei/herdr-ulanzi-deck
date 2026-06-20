@@ -9,10 +9,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -109,7 +109,7 @@ func (c *Client) Connect() error {
 		ActionID: "",
 	})
 
-	log.Printf("[deck] connected as main service: %s", PluginUUID)
+	log.Info().Msg("connected as main service")
 	return nil
 }
 
@@ -126,7 +126,7 @@ func (c *Client) ReadPump() {
 	for {
 		_, raw, err := ws.ReadMessage()
 		if err != nil {
-			log.Printf("[deck] read error: %v", err)
+			log.Error().Err(err).Msg("deck read error")
 			c.mu.Lock()
 			c.connected = false
 			c.mu.Unlock()
@@ -135,7 +135,7 @@ func (c *Client) ReadPump() {
 
 		var msg Message
 		if err := json.Unmarshal(raw, &msg); err != nil {
-			log.Printf("[deck] parse error: %v", err)
+			log.Warn().Err(err).Msg("deck parse error")
 			continue
 		}
 
@@ -335,10 +335,10 @@ func (c *Client) IsConnected() bool {
 	return c.connected
 }
 
-// log prints debug messages when debug mode is on.
+// log emits a zerolog debug message when debug mode is on.
 func (c *Client) log(format string, args ...any) {
 	if c.opts.Debug {
-		log.Printf(format, args...)
+		log.Debug().Msg(fmt.Sprintf(format, args...))
 	}
 }
 

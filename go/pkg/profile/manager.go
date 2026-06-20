@@ -9,9 +9,10 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -109,7 +110,7 @@ func (m *Manager) CreateProfile(deviceUUID string) string {
 	m.profileDir = dir
 
 	if err := os.MkdirAll(filepath.Join(dir, "Profiles"), 0755); err != nil {
-		log.Printf("[profile] mkdir failed: %v", err)
+		log.Error().Err(err).Msg("mkdir failed for profile")
 		return ""
 	}
 
@@ -145,7 +146,7 @@ func (m *Manager) CreateProfile(deviceUUID string) string {
 	os.WriteFile(filepath.Join(dir, "manifest.json"), manifestData, 0644)
 	os.WriteFile(filepath.Join(dir, "icon_default_profile.png"), []byte{}, 0644)
 
-	log.Printf("[profile] created \"%s\" (%d pages)", ProfileName, len(pageUUIDs))
+	log.Info().Int("pages", len(pageUUIDs)).Msg("profile created") // nolint: zerolog-msg-format
 	return dir
 }
 
@@ -219,13 +220,13 @@ func (m *Manager) ActivateProfile(deviceUUID string) {
 	settingPath := filepath.Join(home, "Library", "Application Support", "Ulanzi", "UlanziDeck", "config", "setting.json")
 	data, err := os.ReadFile(settingPath)
 	if err != nil {
-		log.Printf("[profile] setting.json not found: %v", err)
+		log.Warn().Err(err).Str("path", settingPath).Msg("setting.json not found")
 		return
 	}
 
 	var setting map[string]any
 	if err := json.Unmarshal(data, &setting); err != nil {
-		log.Printf("[profile] parse setting.json: %v", err)
+		log.Error().Err(err).Msg("parse setting.json failed")
 		return
 	}
 
@@ -247,10 +248,10 @@ func (m *Manager) ActivateProfile(deviceUUID string) {
 
 	updated, _ := json.MarshalIndent(setting, "", "\t")
 	if err := os.WriteFile(settingPath, updated, 0644); err != nil {
-		log.Printf("[profile] failed to write setting.json: %v", err)
+		log.Error().Err(err).Str("path", settingPath).Msg("failed to write setting.json")
 		return
 	}
-	log.Printf("[profile] activated \"%s\" for device %s", ProfileName, deviceUUID)
+	log.Info().Str("device", deviceUUID).Msg("profile activated")
 }
 
 // RemoveOldProfiles deletes ALL existing Herdr Deck profiles.
@@ -279,7 +280,7 @@ func (m *Manager) RemoveOldProfiles() {
 		if manifest.Name == ProfileName {
 			fullPath := filepath.Join(dir, entry.Name())
 			os.RemoveAll(fullPath)
-			log.Printf("[profile] removed old duplicate: %s", entry.Name())
+			log.Info().Str("path", entry.Name()).Msg("removed old duplicate profile")
 		}
 	}
 }

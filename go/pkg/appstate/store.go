@@ -17,10 +17,10 @@ import (
 // for render decisions. It wraps state.Manager, mapper.Mapper, and references
 // the deck client for actionID management.
 type Store struct {
-	sm       *state.Manager
-	mapper   *mapper.Mapper
-	deck     *deck.Client // for seeding keyActions
-	dirty    bool
+	sm     *state.Manager
+	mapper *mapper.Mapper
+	deck   *deck.Client // for seeding keyActions
+	dirty  bool
 }
 
 // New creates a Store wrapping the given state manager and mapper.

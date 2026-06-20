@@ -4,6 +4,8 @@ go 1.25.0
 
 require (
 	github.com/gorilla/websocket v1.5.3
+	github.com/rs/zerolog v1.35.1
+	github.com/spf13/cobra v1.10.2
 	github.com/tdewolff/canvas v0.0.0-20260617131110-529326a1955e
 )
 
@@ -22,7 +24,11 @@ require (
 	github.com/go-fonts/latin-modern v0.3.3 // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kolesa-team/go-webp v1.0.5 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/srwiley/scanx v0.0.0-20190309010443-e94503791388 // indirect
 	github.com/tdewolff/font v0.0.0-20260424075104-b5eeb1e23189 // indirect
@@ -32,6 +38,7 @@ require (
 	github.com/yuin/goldmark v1.8.2 // indirect
 	golang.org/x/image v0.39.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	gonum.org/v1/plot v0.17.0 // indirect
 	modernc.org/knuth v0.5.5 // indirect

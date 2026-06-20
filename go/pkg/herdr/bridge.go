@@ -5,9 +5,9 @@ package herdr
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/herdr-deck/herdrdeck/pkg/types"
+	"github.com/rs/zerolog/log"
 )
 
 type ConnRef struct {
@@ -37,7 +37,7 @@ func (b *Bridge) FetchAll() []types.UnifiedWorkspace {
 	for _, conn := range b.connections {
 		workspaces, agents, err := b.fetchConn(conn)
 		if err != nil {
-			log.Printf("[bridge] fetch failed for %s: %v", conn.Name, err)
+			log.Error().Err(err).Str("conn", conn.Name).Msg("fetch failed for connection")
 			continue
 		}
 		agentMap := make(map[string][]types.AgentInfo)
@@ -74,7 +74,7 @@ func (b *Bridge) FocusAgent(connName, paneID string) {
 				"target": paneID,
 			})
 			if err != nil {
-				log.Printf("[bridge] focus failed for %s/%s: %v", connName, paneID, err)
+				log.Error().Err(err).Str("conn", connName).Str("pane", paneID).Msg("focus failed")
 			}
 			return
 		}

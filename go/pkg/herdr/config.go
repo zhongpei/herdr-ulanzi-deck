@@ -3,9 +3,10 @@ package herdr
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/rs/zerolog/log"
 )
 
 // ConnConfig describes one herdr connection (local or SSH).
@@ -53,7 +54,7 @@ func LoadConfig() (*AppConfig, error) {
 			if wErr := os.WriteFile(configPath, jsonData, 0644); wErr != nil {
 				return &defaultConfig, fmt.Errorf("write default: %w", wErr)
 			}
-			log.Printf("[config] created default at %s", configPath)
+			log.Info().Str("path", configPath).Msg("created default config")
 			return &defaultConfig, nil
 		}
 		return &defaultConfig, fmt.Errorf("read: %w", err)
@@ -84,7 +85,7 @@ func FindLocalSocket() string {
 		}
 		if fi, err := os.Stat(p); err == nil {
 			if fi.Mode()&os.ModeSocket != 0 || fi.Mode().IsRegular() {
-				log.Printf("[config] found herdr socket: %s", p)
+				log.Debug().Str("path", p).Msg("found herdr socket")
 				return p
 			}
 		}

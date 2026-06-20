@@ -10,9 +10,8 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"log"
+	"os"
 	"time"
 
 	"github.com/herdr-deck/herdrdeck/pkg/appstate"
@@ -23,6 +22,9 @@ import (
 	"github.com/herdr-deck/herdrdeck/pkg/render"
 	"github.com/herdr-deck/herdrdeck/pkg/state"
 	"github.com/herdr-deck/herdrdeck/pkg/types"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 )
 
 // ─── Key mapping ───────────────────────────────────────────
@@ -93,23 +95,30 @@ var (
 // ─── Callbacks (called from ReadPump goroutine) ─────────────
 // MUST be lightweight: store mutation only, no I/O, no render.
 func onAdd(key, actionID string) {
-	log.Printf("[main] action added: key=%s", key)
+	log.Debug().Str("key", key).Str("actionID", actionID).Msg("action added")
 }
 
 func onKeyDown(msg deck.Message) {
 	switch msg.Key {
 	case "0_2", "0_3":
 		st.SetAll()
+		log.Debug().Str("key", msg.Key).Msg("nav: show all")
 	case "1_2", "1_3":
 		st.NextMachine()
+		log.Debug().Str("key", msg.Key).Msg("nav: next machine")
 	case "2_2":
 		st.NextSpace()
+		log.Debug().Str("key", msg.Key).Msg("nav: next space")
 	default:
 		if idx, ok := keyMap[msg.Key]; ok && idx < 10 {
 			kd := bm.RenderAll()
 			if idx < len(kd) && kd[idx].Agent != nil {
 				a := kd[idx].Agent
-				log.Printf("[action] focus: %s/%s", a.ConnName, a.PaneID)
+				log.Info().
+					Str("conn", a.ConnName).
+					Str("pane", a.PaneID).
+					Str("agent", a.AgentType).
+					Msg("focus agent")
 			}
 		}
 	}
@@ -117,18 +126,34 @@ func onKeyDown(msg deck.Message) {
 
 // ─── Main ──────────────────────────────────────────────────
 func main() {
-	addr := flag.String("addr", "127.0.0.1", "UlanziDeck WebSocket address")
-	port := flag.Int("port", 3906, "UlanziDeck WebSocket port")
-	debug := flag.Bool("debug", false, "enable debug logging")
-	flag.Parse()
+	rootCmd := &cobra.Command{
+		Use:   "herdr-deck",
+		Short: "Display herdr agent status on Ulanzi D200X",
+		Long: `Connects to UlanziDeck (port 3906) and herdr daemon to display
+agent workspace status on a D200X stream deck.
 
-	if !*debug {
-		// Suppress non-critical log output in production
-		log.SetFlags(log.Ltime | log.Lmsgprefix)
-	} else {
-		log.SetFlags(log.Ltime | log.Lshortfile | log.Lmsgprefix)
+Key layout: K1-K10 = agents, K11 = ALL, K12 = machine cycle,
+K13 = space cycle, K14 = stats bar.`,
+		RunE: runMain,
 	}
-	log.SetPrefix("[herdr-deck] ")
+
+	rootCmd.Flags().StringP("addr", "a", "127.0.0.1", "UlanziDeck WebSocket address")
+	rootCmd.Flags().IntP("port", "p", 3906, "UlanziDeck WebSocket port")
+	rootCmd.Flags().BoolP("debug", "d", false, "enable debug logging")
+
+	if err := rootCmd.Execute(); err != nil {
+		log.Fatal().Err(err).Msg("startup failed")
+	}
+}
+
+func runMain(cmd *cobra.Command, args []string) error {
+	addr, _ := cmd.Flags().GetString("addr")
+	port, _ := cmd.Flags().GetInt("port")
+	debug, _ := cmd.Flags().GetBool("debug")
+
+	// ── Init logger ──────────────────────────────────────────
+	initLogger(debug)
+	log.Info().Str("addr", addr).Int("port", port).Bool("debug", debug).Msg("starting herdr-deck")
 
 	sm = state.NewManager()
 	ir = render.New()
@@ -136,95 +161,151 @@ func main() {
 	st = appstate.New(sm, bm)
 
 	// ── Load herdr data ─────────────────────────────────────
-	cfg, _ := herdr.LoadConfig()
+	cfg, err := herdr.LoadConfig()
+	if err != nil {
+		log.Warn().Err(err).Msg("config load issue, using defaults")
+	}
 	bridge := herdr.NewBridge()
 	for _, c := range cfg.Connections {
 		if c.Type == "local" {
 			sock := herdr.FindLocalSocket()
 			if sock == "" {
-				log.Printf("[main] no socket for %q", c.Name)
+				log.Warn().Str("name", c.Name).Msg("no socket found for connection")
 				continue
 			}
 			bridge.AddConnection(c.Name, c.Abbr, c.Color, herdr.New(sock))
+			log.Debug().Str("name", c.Name).Str("socket", sock).Msg("added herdr connection")
+		} else {
+			log.Debug().Str("name", c.Name).Str("type", c.Type).Msg("skipped non-local connection")
 		}
 	}
 	unified := bridge.FetchAll()
 	if len(unified) == 0 {
-		log.Println("[main] no herdr data, using mock")
+		log.Warn().Msg("no herdr data, using mock data")
 		unified = buildMockData()
 	}
 	st.RefreshHerdrData(unified)
-	log.Printf("[main] %d ws, %d agents", len(unified), len(sm.GetAllAgents()))
+	allAgents := sm.GetAllAgents()
+	log.Info().
+		Int("workspaces", len(unified)).
+		Int("agents", len(allAgents)).
+		Msg("herdr data loaded")
+	log.Debug().
+		Int("machines", len(sm.GetMachines())).
+		Int("done", sm.ComputeStats().Done).
+		Int("idle", sm.ComputeStats().Idle).
+		Int("working", sm.ComputeStats().Working).
+		Int("blocked", sm.ComputeStats().Blocked).
+		Int("unknown", sm.ComputeStats().Unknown).
+		Msg("state summary")
 
 	// ── Connect to deck ─────────────────────────────────────
 	dc = deck.New(deck.Options{
-		Address: *addr,
-		Port:    *port,
-		Debug:   *debug,
+		Address: addr,
+		Port:    port,
+		Debug:   debug,
 	}, onAdd, onKeyDown)
 	if err := dc.Connect(); err != nil {
-		log.Printf("[main] connect failed: %v", err)
+		log.Error().Err(err).Msg("deck connect failed")
 	}
 	st.SetDeckClient(dc)
+	log.Debug().Msg("deck client attached to store")
 
 	// ── Profile ─────────────────────────────────────────────
 	pm := profile.New()
 	if dir := pm.Ensure("02d04a045u3673881"); dir != "" {
 		pm.ActivateProfile("02d04a045u3673881")
 		if ka := pm.GetKeyActionMap(); len(ka) > 0 {
-			log.Printf("[main] profile ready, %d keys", len(ka))
+			log.Info().Int("keys", len(ka)).Msg("profile ready, key actions seeded")
 			st.SeedKeyActions(ka)
 		}
+	} else {
+		log.Warn().Msg("profile ensure returned empty dir")
 	}
 
 	// ── Start message pump (reconnect loop) ─────────────────
 	go messagePump()
+	log.Debug().Msg("message pump started")
 
 	// ── Event loop (single goroutine) ───────────────────────
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
+	loopIter := 0
 	for range ticker.C {
+		loopIter++
+		if loopIter%2000 == 0 {
+			log.Debug().Int("iter", loopIter).Msg("event loop heartbeat")
+		}
+
 		if !st.IsDirty() {
 			continue
 		}
 		snap := st.Capture()
 		st.MarkClean()
 		if !snap.ChangedSince(lastHash) {
+			log.Debug().Msg("state unchanged, skipping render")
 			continue
 		}
 		lastHash = snap.Hash()
+		log.Debug().Int("mode", int(snap.Mode)).Msg("state changed, rendering")
 		renderAll()
 	}
+	return nil
+}
+
+// ── Logger init ───────────────────────────────────────────
+func initLogger(debug bool) {
+	output := zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: "15:04:05",
+		NoColor:    false,
+	}
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+
+	level := zerolog.InfoLevel
+	if debug {
+		level = zerolog.DebugLevel
+	}
+
+	log.Logger = zerolog.New(output).
+		Level(level).
+		With().
+		Timestamp().
+		Caller().
+		Logger()
 }
 
 // ── messagePump: manages WebSocket reconnection ────────────
 func messagePump() {
 	for {
 		dc.ReadPump()
-		log.Println("[main] disconnected, reconnecting...")
+		log.Warn().Msg("deck disconnected, reconnecting in 2s...")
 		time.Sleep(2 * time.Second)
 		if err := dc.Connect(); err != nil {
-			log.Printf("[main] reconnect failed: %v", err)
+			log.Error().Err(err).Msg("reconnect failed")
 			continue
 		}
-		log.Println("[main] reconnected")
+		log.Info().Msg("deck reconnected")
 
 		// Re-seed key actions for the new connection
 		pm := profile.New()
 		if dir := pm.Ensure("02d04a045u3673881"); dir != "" {
 			if ka := pm.GetKeyActionMap(); len(ka) > 0 {
 				st.SeedKeyActions(ka)
+				log.Debug().Int("keys", len(ka)).Msg("re-seeded key actions")
 			}
 		}
 		// Force re-render with current data
 		st.ForceDirty()
+		log.Debug().Msg("store forced dirty for re-render")
 	}
 }
 
 // ── Render ─────────────────────────────────────────────────
 func renderAll() {
 	kd := bm.RenderAll()
+	log.Debug().Int("keys", len(kd)).Msg("rendering all keys")
 	for _, k := range kd {
 		var svg string
 		var kt string
@@ -232,6 +313,11 @@ func renderAll() {
 		case k.Agent != nil:
 			svg = ir.RenderAgentKey(*k.Agent)
 			kt = "agent " + k.Agent.AgentType + "/" + k.Agent.Status
+			log.Debug().
+				Str("agent", k.Agent.AgentType).
+				Str("status", k.Agent.Status).
+				Str("alias", k.Agent.Alias).
+				Msg("render agent key")
 		case k.NavAll != nil:
 			svg = ir.RenderNavAll(*k.NavAll)
 			kt = "navAll"
@@ -244,6 +330,13 @@ func renderAll() {
 		case k.Stats != nil:
 			svg = ir.RenderStatsKey(k.Stats.Stats)
 			kt = "stats"
+			log.Debug().
+				Int("done", k.Stats.Stats.Done).
+				Int("idle", k.Stats.Stats.Idle).
+				Int("working", k.Stats.Stats.Working).
+				Int("blocked", k.Stats.Stats.Blocked).
+				Int("unknown", k.Stats.Stats.Unknown).
+				Msg("render stats key")
 		default:
 			svg = ir.RenderEmptyKey()
 			kt = "empty"
@@ -251,12 +344,12 @@ func renderAll() {
 		pk := physKeyFromID(keyCommandID(k))
 		if dc != nil && dc.IsConnected() {
 			if err := dc.SetKeyImage(pk, svg, pk == "3_2"); err != nil {
-				log.Printf("[render] %s FAILED: %v", pk, err)
+				log.Error().Err(err).Str("key", pk).Str("type", kt).Msg("set key image failed")
 			} else {
-				log.Printf("[render] %s OK (%s)", pk, kt)
+				log.Debug().Str("key", pk).Str("type", kt).Msg("key image set OK")
 			}
 		} else {
-			log.Printf("[render] %s SKIP (disconnected): %s", pk, kt)
+			log.Warn().Str("key", pk).Str("type", kt).Msg("key image skipped (disconnected)")
 		}
 	}
 	logFilterInfo()
@@ -265,9 +358,16 @@ func renderAll() {
 func logFilterInfo() {
 	all := sm.GetAllAgents()
 	stats := sm.ComputeStats()
-	log.Printf("[info] %d machines, %d agents | D%d I%d W%d B%d ?%d",
-		len(sm.GetMachines()), len(all),
-		stats.Done, stats.Idle, stats.Working, stats.Blocked, stats.Unknown)
+	machines := sm.GetMachines()
+	log.Info().
+		Int("machines", len(machines)).
+		Int("agents", len(all)).
+		Int("done", stats.Done).
+		Int("idle", stats.Idle).
+		Int("working", stats.Working).
+		Int("blocked", stats.Blocked).
+		Int("unknown", stats.Unknown).
+		Msg("render cycle complete")
 }
 
 // ── Mock data ──────────────────────────────────────────────
