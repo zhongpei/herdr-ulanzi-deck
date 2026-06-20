@@ -106,6 +106,48 @@ func renderDirectPNG(svg string, width, height int, scaleX, scaleY float64) ([]b
 		c.RenderText(text, canvas.Identity.Translate(px, py))
 	}
 
+	// Draw polylines (used by status icons like checkmark, triangle, bars)
+	polylines := parsePolylineElements(svg)
+	for _, p := range polylines {
+		if len(p.points) < 4 {
+			continue
+		}
+		path := &canvas.Path{}
+		// First point: MoveTo (in flipped canvas coords)
+		px0 := p.points[0] * scaleX
+		py0 := float64(height) - p.points[1]*scaleY
+		path.MoveTo(px0, py0)
+		// Remaining points: LineTo
+		for i := 2; i+1 < len(p.points); i += 2 {
+			px := p.points[i] * scaleX
+			py := float64(height) - p.points[i+1]*scaleY
+			path.LineTo(px, py)
+		}
+		style := buildStrokeStyle(p.stroke, p.fill, p.opacity, p.strokeWidth*scaleX, p.linecap, p.linejoin)
+		c.RenderPath(path, style, canvas.Identity)
+	}
+
+	// Draw lines (used by status icons like pause bars, exclamation)
+	lines := parseLineElements(svg)
+	for _, l := range lines {
+		path := &canvas.Path{}
+		path.MoveTo(l.x1*scaleX, float64(height)-l.y1*scaleY)
+		path.LineTo(l.x2*scaleX, float64(height)-l.y2*scaleY)
+		style := buildStrokeStyle(l.stroke, "none", 1.0, l.strokeWidth*scaleX, l.linecap, "")
+		c.RenderPath(path, style, canvas.Identity)
+	}
+
+	// Draw circles (used by status icons like unknown badge, working spinner)
+	circles := parseCircleElements(svg)
+	for _, ci := range circles {
+		px := ci.cx * scaleX
+		py := float64(height) - ci.cy*scaleY
+		pr := ci.r * scaleX
+		path := canvas.Circle(pr).Translate(px, py)
+		style := buildStrokeStyle(ci.stroke, ci.fill, 1.0, ci.strokeWidth*scaleX, "", "")
+		c.RenderPath(path, style, canvas.Identity)
+	}
+
 	var buf bytes.Buffer
 	if err := c.Write(&buf, renderers.PNG(canvas.DPMM(1))); err != nil {
 		return nil, fmt.Errorf("render png: %w", err)
@@ -122,11 +164,35 @@ type rectInfo struct {
 }
 
 type textInfo struct {
-	content          string
-	x, y, size       float64
-	fill             string
-	anchor           string
-	fontWeight       string
+	content    string
+	x, y, size float64
+	fill       string
+	anchor     string
+	fontWeight string
+}
+
+type polylineInfo struct {
+	points      []float64 // x,y,x,y,...
+	stroke      string
+	strokeWidth float64
+	fill        string
+	opacity     float64
+	linecap     string
+	linejoin    string
+}
+
+type circleInfo struct {
+	cx, cy, r   float64
+	fill        string
+	stroke      string
+	strokeWidth float64
+}
+
+type lineInfo struct {
+	x1, y1, x2, y2 float64
+	stroke         string
+	strokeWidth    float64
+	linecap        string
 }
 
 func parseRectElements(svg string) []rectInfo {
@@ -245,24 +311,15 @@ func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
 		return f, nil
 	}
 	family := canvas.NewFontFamily("sans-serif")
-	// Load multiple fonts so glyph fallback covers both Latin text and
-	// Unicode symbols (✓ ‖ ↻ ⚠). Apple Symbols covers U+21BB, U+26A0, etc.
-	fontNames := []string{
-		"sans-serif", "Helvetica", "Arial", "Arial Unicode MS", "Apple Symbols",
-	}
-	loaded := false
-	for _, name := range fontNames {
-		if err := family.LoadSystemFont(name, style); err == nil {
-			loaded = true
-			break
-		}
-	}
-	if !loaded {
-		for _, name := range []string{"Helvetica", "Arial", "Liberation Sans"} {
-			if err := family.LoadSystemFont(name, style); err == nil {
-				break
-			}
-		}
+	// Load ALL candidate fonts so the family can fall back per-glyph across
+	// them. Loading only the first match (e.g. "sans-serif") skips Unicode-
+	// capable fonts like Apple Symbols / Arial Unicode MS, and any missing
+	// glyph renders as .notdef (box).
+	//
+	// FontFamily.LoadSystemFont is additive: each call appends a font face to
+	// the family, and Face() consults them in order per character.
+	for _, name := range fontNames() {
+		_ = family.LoadSystemFont(name, style)
 	}
 	face := family.Face(size, color.Black, style)
 	fontCache[key] = face
@@ -272,24 +329,24 @@ func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
 // loadFontWithColor creates a new font face with the specified fill color, uncached.
 func loadFontWithColor(size float64, style canvas.FontStyle, fill color.Color) *canvas.FontFace {
 	family := canvas.NewFontFamily("sans-serif")
-	fontNames := []string{
-		"sans-serif", "Helvetica", "Arial", "Arial Unicode MS", "Apple Symbols",
-	}
-	loaded := false
-	for _, name := range fontNames {
-		if err := family.LoadSystemFont(name, style); err == nil {
-			loaded = true
-			break
-		}
-	}
-	if !loaded {
-		for _, name := range []string{"Helvetica", "Arial", "Liberation Sans"} {
-			if err := family.LoadSystemFont(name, style); err == nil {
-				break
-			}
-		}
+	for _, name := range fontNames() {
+		_ = family.LoadSystemFont(name, style)
 	}
 	return family.Face(size, fill, style)
+}
+
+// fontNames returns the system font names to load, in glyph-fallback order.
+// macOS: Apple Symbols + Arial Unicode MS carry the supplementary plane
+// glyphs (U+21BB ↻, U+26A0 ⚠, U+2713 ✓, U+2016 ‖) that Helvetica/Arial lack.
+func fontNames() []string {
+	return []string{
+		"Apple Symbols",
+		"Arial Unicode MS",
+		"Helvetica",
+		"Arial",
+		"Liberation Sans",
+		"sans-serif",
+	}
 }
 
 // ─── Color helpers ───────────────────────────────────────────
@@ -340,6 +397,184 @@ func extractFloat(line, attr string) float64 {
 	var v float64
 	fmt.Sscanf(s, "%f", &v)
 	return v
+}
+
+// extractPoints parses an SVG points attribute (e.g. "8,76 16,84 32,66" or
+// "8,76,16,84,32,66") into a flat []float64 of x,y pairs. Skips tokens that
+// don't parse as numbers.
+func extractPoints(s string) []float64 {
+	var out []float64
+	f := func(tok string) {
+		var v float64
+		if _, err := fmt.Sscanf(tok, "%f", &v); err == nil {
+			out = append(out, v)
+		}
+	}
+	// Split on whitespace and commas simultaneously by replacing commas with spaces.
+	for _, tok := range strings.Fields(strings.ReplaceAll(s, ",", " ")) {
+		f(tok)
+	}
+	return out
+}
+
+func parsePolylineElements(svg string) []polylineInfo {
+	var out []polylineInfo
+	lines := strings.Split(svg, "\n")
+	i := 0
+	for i < len(lines) {
+		trimmed := strings.TrimSpace(lines[i])
+		if !strings.HasPrefix(trimmed, "<polyline") {
+			i++
+			continue
+		}
+		merged := trimmed
+		i++
+		for i < len(lines) {
+			next := strings.TrimSpace(lines[i])
+			if strings.HasPrefix(next, "<") {
+				break
+			}
+			merged += " " + next
+			if strings.HasSuffix(strings.TrimSpace(next), "/>") || strings.HasSuffix(strings.TrimSpace(next), ">") {
+				break
+			}
+			i++
+		}
+		var p polylineInfo
+		p.opacity = 1.0
+		p.points = extractPoints(extractStr(merged, "points"))
+		p.stroke = extractStr(merged, "stroke")
+		p.fill = extractStr(merged, "fill")
+		p.linecap = extractStr(merged, "stroke-linecap")
+		p.linejoin = extractStr(merged, "stroke-linejoin")
+		p.strokeWidth = extractFloat(merged, "stroke-width")
+		if p.strokeWidth == 0 {
+			p.strokeWidth = 1
+		}
+		if op := extractFloat(merged, "opacity"); op > 0 {
+			p.opacity = op
+		}
+		if len(p.points) >= 4 {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func parseLineElements(svg string) []lineInfo {
+	var out []lineInfo
+	lines := strings.Split(svg, "\n")
+	i := 0
+	for i < len(lines) {
+		trimmed := strings.TrimSpace(lines[i])
+		if !strings.HasPrefix(trimmed, "<line") {
+			i++
+			continue
+		}
+		merged := trimmed
+		i++
+		for i < len(lines) {
+			next := strings.TrimSpace(lines[i])
+			if strings.HasPrefix(next, "<") {
+				break
+			}
+			merged += " " + next
+			if strings.HasSuffix(strings.TrimSpace(next), "/>") || strings.HasSuffix(strings.TrimSpace(next), ">") {
+				break
+			}
+			i++
+		}
+		var l lineInfo
+		l.x1 = extractFloat(merged, "x1")
+		l.y1 = extractFloat(merged, "y1")
+		l.x2 = extractFloat(merged, "x2")
+		l.y2 = extractFloat(merged, "y2")
+		l.stroke = extractStr(merged, "stroke")
+		l.linecap = extractStr(merged, "stroke-linecap")
+		l.strokeWidth = extractFloat(merged, "stroke-width")
+		if l.strokeWidth == 0 {
+			l.strokeWidth = 1
+		}
+		out = append(out, l)
+	}
+	return out
+}
+
+func parseCircleElements(svg string) []circleInfo {
+	var out []circleInfo
+	lines := strings.Split(svg, "\n")
+	i := 0
+	for i < len(lines) {
+		trimmed := strings.TrimSpace(lines[i])
+		if !strings.HasPrefix(trimmed, "<circle") {
+			i++
+			continue
+		}
+		merged := trimmed
+		i++
+		for i < len(lines) {
+			next := strings.TrimSpace(lines[i])
+			if strings.HasPrefix(next, "<") {
+				break
+			}
+			merged += " " + next
+			if strings.HasSuffix(strings.TrimSpace(next), "/>") || strings.HasSuffix(strings.TrimSpace(next), ">") {
+				break
+			}
+			i++
+		}
+		var ci circleInfo
+		ci.cx = extractFloat(merged, "cx")
+		ci.cy = extractFloat(merged, "cy")
+		ci.r = extractFloat(merged, "r")
+		ci.fill = extractStr(merged, "fill")
+		ci.stroke = extractStr(merged, "stroke")
+		ci.strokeWidth = extractFloat(merged, "stroke-width")
+		if ci.r > 0 {
+			out = append(out, ci)
+		}
+	}
+	return out
+}
+
+// buildStrokeStyle assembles a canvas.Style honoring fill, stroke, opacity,
+// stroke-width, and optional stroke-linecap / stroke-linejoin.
+// fill="none" suppresses the fill paint; otherwise fill is applied.
+func buildStrokeStyle(stroke, fill string, opacity, strokeWidth float64, linecap, linejoin string) canvas.Style {
+	style := canvas.Style{
+		StrokeWidth: strokeWidth,
+	}
+	if fill != "" && fill != "none" {
+		style.Fill = canvas.Paint{Color: parseHexA(fill, opacity)}
+	}
+	if stroke != "" && stroke != "none" {
+		style.Stroke = canvas.Paint{Color: parseHexA(stroke, opacity)}
+		style.StrokeCapper = parseLineCap(linecap)
+		style.StrokeJoiner = parseLineJoin(linejoin)
+	}
+	return style
+}
+
+func parseLineCap(s string) canvas.Capper {
+	switch s {
+	case "round":
+		return canvas.RoundCap
+	case "square":
+		return canvas.SquareCap
+	default:
+		return canvas.ButtCap
+	}
+}
+
+func parseLineJoin(s string) canvas.Joiner {
+	switch s {
+	case "round":
+		return canvas.RoundJoin
+	case "bevel":
+		return canvas.BevelJoin
+	default:
+		return canvas.MiterJoin
+	}
 }
 
 func extractStr(line, attr string) string {

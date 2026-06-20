@@ -47,16 +47,29 @@ func AgentIcons() map[string]string {
 	}
 }
 
-// StatusIcons returns SVG inner content for each status indicator.
-// Uses Unicode characters rendered as <text> (compatible with the canvas
-// SVG parser which only handles <rect> and <text>).
-// Caller wraps in a <text> element positioned at top-left of the key.
+// StatusIcons returns hand-drawn SVG inner content for each status indicator.
+// Positioned in the 200x200 key viewBox at bottom-right (visual center ~x=180, y=180),
+// drawn in a ~24x24 area. Pure SVG primitives (no Unicode text) so the icons
+// render reliably on the D200X without depending on system font glyph coverage.
+//
+// Style: white stroke, no fill (filled elements use white fill explicitly).
+// Icons inlined directly by the caller — no <text> wrapper.
 func StatusIcons() map[string]string {
 	return map[string]string{
-		"done":    "✓",
-		"idle":    "‖",
-		"working": "↻",
-		"blocked": "⚠",
-		"unknown": "?",
+		// ✓ checkmark — two segments forming a check
+		"done": `<polyline points="168,180 176,188 192,170" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`,
+		// ‖ pause — two vertical bars
+		"idle": `<line x1="174" y1="170" x2="174" y2="194" stroke="white" stroke-width="4" stroke-linecap="round"/>
+<line x1="186" y1="170" x2="186" y2="194" stroke="white" stroke-width="4" stroke-linecap="round"/>`,
+		// ↻ working — circle with motion notch
+		"working": `<circle cx="180" cy="180" r="8" fill="none" stroke="white" stroke-width="3"/>
+<line x1="180" y1="170" x2="180" y2="174" stroke="white" stroke-width="3" stroke-linecap="round"/>`,
+		// ⚠ blocked — warning triangle + exclamation
+		"blocked": `<polyline points="180,168 192,190 168,190 180,168" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="180" y1="178" x2="180" y2="184" stroke="white" stroke-width="3" stroke-linecap="round"/>
+<circle cx="180" cy="187.5" r="1.5" fill="white"/>`,
+		// ? unknown — circle + ASCII "?" (always renders in basic Latin font)
+		"unknown": `<circle cx="180" cy="180" r="11" fill="none" stroke="white" stroke-width="3"/>
+<text x="180" y="186" text-anchor="middle" fill="white" font-size="16" font-weight="800">?</text>`,
 	}
 }

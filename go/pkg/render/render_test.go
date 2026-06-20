@@ -363,6 +363,33 @@ func TestStatusFirstChar(t *testing.T) {
 	}
 }
 
+func TestRenderAgentKey_StatusIconsAreSVGPrimitives(t *testing.T) {
+	// Status icons should be rendered as SVG primitives (polyline/line/circle),
+	// NOT as Unicode text — the D200X can't render ✓ ‖ ↻ ⚠ reliably.
+	r := New()
+	for _, st := range []string{"done", "idle", "working", "blocked", "unknown"} {
+		svg := decodeSVG(r.RenderAgentKey(types.AgentKeyData{
+			AgentType: "pi",
+			Alias:     "t",
+			Status:    st,
+			ConnAbbr:  "L",
+			WsLabel:   "w",
+		}))
+		hasPrimitive := strings.Contains(svg, "<polyline") ||
+			strings.Contains(svg, "<line ") ||
+			strings.Contains(svg, "<circle")
+		if !hasPrimitive {
+			t.Errorf("status %q: expected SVG primitive (polyline/line/circle) but got: %s", st, svg)
+		}
+		// Must NOT contain any of the broken Unicode chars.
+		for _, bad := range []string{"✓", "‖", "↻", "⚠"} {
+			if strings.Contains(svg, bad) {
+				t.Errorf("status %q: SVG still contains broken Unicode %q", st, bad)
+			}
+		}
+	}
+}
+
 func TestRenderAgentKey_AllStatusColors(t *testing.T) {
 	r := New()
 	statuses := []string{"done", "idle", "working", "blocked", "unknown"}
