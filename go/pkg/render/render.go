@@ -57,39 +57,83 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 	}
 
 	displayAlias := truncate(alias, 9)
-	displayWs := truncate(wsLabel, 12)
 
-	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" rx="8" fill="%s"/>
+	// Try two-line workspace label if long enough and has separator
+	wsLine1, wsLine2 := smartSplit(wsLabel)
+	useTwoLine := wsLine2 != "" && len(wsLabel) > 10
+	if !useTwoLine {
+		wsLine1 = truncate(wsLabel, 12)
+	}
+
+	var svg string
+	if !useTwoLine {
+		svg = fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" rx="8" fill="%[1]s"/>
   <rect width="200" height="200" rx="8" fill="#000" opacity="0.15"/>
-  <rect x="0" y="0" width="100" height="48" fill="%s"/>
-  <rect x="100" y="0" width="100" height="48" fill="%s"/>
+  <rect x="0" y="0" width="100" height="48" fill="%[2]s"/>
+  <rect x="100" y="0" width="100" height="48" fill="%[3]s"/>
   <rect x="0" y="48" width="200" height="1" fill="#fff" opacity="0.25"/>
   <rect x="2" y="2" width="196" height="196" rx="8"
-        fill="none" stroke="%s" stroke-width="%s"
-        opacity="%d"/>
+        fill="none" stroke="%[4]s" stroke-width="%[5]s"
+        opacity="%[6]d"/>
   <text x="50" y="32" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="24" font-weight="800">%s</text>
+        font-family="sans-serif" font-size="24" font-weight="800">%[7]s</text>
   <text x="150" y="32" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="24" font-weight="800">%s</text>
+        font-family="sans-serif" font-size="24" font-weight="800">%[8]s</text>
   <text x="100" y="90" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="36" font-weight="700">%s</text>
+        font-family="sans-serif" font-size="36" font-weight="700">%[9]s</text>
   <text x="100" y="125" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="20" font-weight="800">%s</text>
+        font-family="sans-serif" font-size="20" font-weight="800">%[10]s</text>
   <text x="100" y="155" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="26" font-weight="700">%s</text>
+        font-family="sans-serif" font-size="26" font-weight="700">%[11]s</text>
 </svg>`,
-		statusColor,
-		agentColor,
-		machineColor,
-		borderColor, borderWidth,
-		boolToInt(d.Focused),
-		agentName,
-		machineAbbr,
-		displayAlias,
-		statusLetter,
-		displayWs,
-	)
+			statusColor,
+			agentColor,
+			machineColor,
+			borderColor, borderWidth,
+			boolToInt(d.Focused),
+			agentName,
+			machineAbbr,
+			displayAlias,
+			statusLetter,
+			wsLine1,
+		)
+	} else {
+		svg = fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" rx="8" fill="%[1]s"/>
+  <rect width="200" height="200" rx="8" fill="#000" opacity="0.15"/>
+  <rect x="0" y="0" width="100" height="48" fill="%[2]s"/>
+  <rect x="100" y="0" width="100" height="48" fill="%[3]s"/>
+  <rect x="0" y="48" width="200" height="1" fill="#fff" opacity="0.25"/>
+  <rect x="2" y="2" width="196" height="196" rx="8"
+        fill="none" stroke="%[4]s" stroke-width="%[5]s"
+        opacity="%[6]d"/>
+  <text x="50" y="32" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="24" font-weight="800">%[7]s</text>
+  <text x="150" y="32" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="24" font-weight="800">%[8]s</text>
+  <text x="100" y="90" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="36" font-weight="700">%[9]s</text>
+  <text x="100" y="125" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="20" font-weight="800">%[10]s</text>
+  <text x="100" y="148" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="22" font-weight="700">%[11]s</text>
+  <text x="100" y="172" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="22" font-weight="700">%[12]s</text>
+</svg>`,
+			statusColor,
+			agentColor,
+			machineColor,
+			borderColor, borderWidth,
+			boolToInt(d.Focused),
+			agentName,
+			machineAbbr,
+			displayAlias,
+			statusLetter,
+			wsLine1,
+			wsLine2,
+		)
+	}
 
 	return toDataURI(svg)
 }
