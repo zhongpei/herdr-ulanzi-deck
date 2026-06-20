@@ -202,6 +202,7 @@ func runMain(cmd *cobra.Command, args []string) error {
 				tp = 19999 // default fallback
 			}
 			tun := herdr.NewTunnel(c.Host, c.RemoteSocket, tp)
+			tun.SSHPort = c.SSHPort
 			if err := tun.Start(); err != nil {
 				log.Error().Err(err).Str("name", c.Name).Msg("SSH tunnel start failed")
 				continue

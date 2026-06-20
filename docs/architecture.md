@@ -71,6 +71,7 @@ Unix Socket                     Unix Socket
 | `host` | string | ssh only | SSH target (matches `~/.ssh/config`) |
 | `remoteSocket` | string | ssh only | Remote herdr socket absolute path |
 | `localPort` | number | ssh only | Local TCP port for SSH forward |
+| `sshPort` | number | ssh only | SSH server port (omit = default 22) |
 
 ### 1.2 Protocols
 
@@ -83,7 +84,8 @@ Unix Socket                     Unix Socket
 
 ### 1.3 SSH Tunnel (Go)
 
-- `ssh -NL <localPort>:<remoteSocket> <host>`
+- `ssh -NL <localPort>:<remoteSocket> [-p <sshPort>] <host>`
+- `-p <sshPort>` is added when `sshPort > 0` in config
 - Forwards remote Unix socket to local TCP port
 - Tunnel managed by `herdr/tunnel.go` (Start, WaitReady, Close)
 - Waits for TCP port to accept connections (up to 10s timeout)

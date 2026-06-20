@@ -22,7 +22,8 @@
       "type": "ssh",
       "host": "user@prod-host",
       "remoteSocket": "/home/user/.config/herdr/herdr.sock",
-      "localPort": 19998
+      "localPort": 19998,
+      "sshPort": 9134
     }
   ]
 }

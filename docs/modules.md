@@ -103,7 +103,8 @@ Entry point for the Go binary.
 ### `pkg/herdr/tunnel.go`
 
 - `Tunnel` manages an SSH port-forwarding process
-- `Start()` spawns `ssh -NL <localPort>:<remoteSocket> <host>`
+- `SSHPort` field: when > 0, `Start()` adds `-p <sshPort>` before the host argument
+- `Start()` spawns `ssh -NL <localPort>:<remoteSocket> [-p <sshPort>] <host>`
 - `WaitReady(timeout)` polls TCP port until accepting connections (100ms interval)
 - `Close()` sends SIGINT, waits 1s, then SIGKILL if process hasn't exited
 - Target address: `"127.0.0.1:<localPort>"` — consumed by `herdr.New()` as TCP target

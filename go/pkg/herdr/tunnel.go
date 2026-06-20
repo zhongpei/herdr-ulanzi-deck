@@ -24,6 +24,7 @@ type Tunnel struct {
 	RemoteSocket string // remote Unix socket path
 	LocalPort    int    // local TCP port to bind
 	TargetAddr   string // "127.0.0.1:LocalPort"
+	SSHPort      int    // SSH port override (0 = default 22)
 
 	cmd    *exec.Cmd
 	cancel chan struct{}
@@ -46,8 +47,11 @@ func (t *Tunnel) Start() error {
 	args := []string{
 		"-NL",
 		fmt.Sprintf("%d:%s", t.LocalPort, t.RemoteSocket),
-		t.Host,
 	}
+	if t.SSHPort > 0 {
+		args = append(args, "-p", fmt.Sprintf("%d", t.SSHPort))
+	}
+	args = append(args, t.Host)
 	cmd := exec.Command("ssh", args...)
 	t.cmd = cmd
 	if err := cmd.Start(); err != nil {

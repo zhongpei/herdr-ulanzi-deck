@@ -115,7 +115,8 @@ cp connections.sample.json ~/.config/herdr-deck/connections.json
       "type": "ssh",
       "host": "user@hostname",
       "remoteSocket": "/home/user/.config/herdr/herdr.sock",
-      "localPort": 19999
+      "localPort": 19999,
+      "sshPort": 9134
     }
   ]
 }

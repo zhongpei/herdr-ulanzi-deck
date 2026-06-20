@@ -18,6 +18,7 @@ type ConnConfig struct {
 	Host         string `json:"host,omitempty"`
 	RemoteSocket string `json:"remoteSocket,omitempty"`
 	LocalPort    int    `json:"localPort,omitempty"`
+	SSHPort      int    `json:"sshPort,omitempty"`
 }
 
 // AppConfig holds the full set of configured connections.
