@@ -90,4 +90,75 @@ func TestKeyHashTracker_LargeSVG(t *testing.T) {
 	}
 }
 
+func TestKeyHashTracker_EmptySVG(t *testing.T) {
+	tracker := NewKeyHashTracker()
+	if !tracker.CheckAndUpdate(0, "") {
+		t.Error("first call with empty SVG should return true")
+	}
+	if tracker.CheckAndUpdate(0, "") {
+		t.Error("same empty SVG should return false")
+	}
+}
+
+func TestKeyHashTracker_AllKeysIndependently(t *testing.T) {
+	tracker := NewKeyHashTracker()
+	// Assign different content to each of 14 keys
+	for i := 0; i < 14; i++ {
+		if !tracker.CheckAndUpdate(i, "svg-"+itoa(i)) {
+			t.Fatalf("first call for key %d should return true", i)
+		}
+	}
+	// Verify each key stays unchanged on second pass
+	for i := 0; i < 14; i++ {
+		if tracker.CheckAndUpdate(i, "svg-"+itoa(i)) {
+			t.Errorf("key %d unchanged but returned true", i)
+		}
+	}
+}
+
+func TestKeyHashTracker_IdempotentAfterChange(t *testing.T) {
+	tracker := NewKeyHashTracker()
+	tracker.CheckAndUpdate(0, "original")
+	// Change
+	tracker.CheckAndUpdate(0, "changed")
+	// Same as changed — should be false
+	if tracker.CheckAndUpdate(0, "changed") {
+		t.Error("should return false for repeating the changed content")
+	}
+}
+
+func TestKeyHashTracker_Alternating(t *testing.T) {
+	tracker := NewKeyHashTracker()
+	svgA := "<svg>A</svg>"
+	svgB := "<svg>B</svg>"
+	tracker.CheckAndUpdate(0, svgA) // true (first)
+	tracker.CheckAndUpdate(0, svgB) // true (changed)
+	tracker.CheckAndUpdate(0, svgA) // true (changed back)
+	if tracker.CheckAndUpdate(0, svgA) {
+		t.Error("third call with svgA should return false (same as last)")
+	}
+	tracker.CheckAndUpdate(0, svgB) // true (changed again)
+	if tracker.CheckAndUpdate(0, svgB) {
+		t.Error("second call with svgB should return false")
+	}
+}
+
+func TestKeyHashTracker_ResetDirtied(t *testing.T) {
+	tracker := NewKeyHashTracker()
+	tracker.CheckAndUpdate(0, "a")
+	tracker.Reset()
+	// All keys should re-render after reset
+	for i := 0; i < 14; i++ {
+		if !tracker.CheckAndUpdate(i, "a") {
+			t.Errorf("key %d should be dirty after reset", i)
+		}
+	}
+	// Second pass — stable
+	for i := 0; i < 14; i++ {
+		if tracker.CheckAndUpdate(i, "a") {
+			t.Errorf("key %d should be stable after re-render", i)
+		}
+	}
+}
+
 

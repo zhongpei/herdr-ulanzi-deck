@@ -1,8 +1,13 @@
 package deck
 
 import (
+	"image/color"
 	"testing"
+
+	"github.com/tdewolff/canvas"
 )
+
+// ─── SVG element parser tests ──────────────────────────────
 
 func TestParsePolylineElements(t *testing.T) {
 	svg := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
@@ -78,9 +83,6 @@ func TestParseLineElements(t *testing.T) {
 }
 
 func TestSVGToPNG_RendersStatusIcons(t *testing.T) {
-	// Full pipeline: render an agent key with all 5 status variants and
-	// verify the PNG output is well-formed.
-	// This is the regression test for the "boxes" bug.
 	xml := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" fill="#27AE60"/>
   <polyline points="8,76 16,84 32,66" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -90,11 +92,9 @@ func TestSVGToPNG_RendersStatusIcons(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SVGToPNG failed: %v", err)
 	}
-	// PNG magic header
 	if len(png) < 8 || string(png[:8]) != "\x89PNG\r\n\x1a\n" {
 		t.Fatalf("output is not a valid PNG (got %d bytes)", len(png))
 	}
-	// Sanity: should be non-trivial size
 	if len(png) < 500 {
 		t.Errorf("PNG suspiciously small: %d bytes", len(png))
 	}
@@ -121,5 +121,163 @@ func TestExtractPoints_HandlesCommasAndSpaces(t *testing.T) {
 				t.Errorf("extractPoints(%q)[%d] = %v, want %v", tc.in, i, got[i], v)
 			}
 		}
+	}
+}
+
+// ─── Font color cache tests ──────────────────────────────────
+
+func TestLoadFontWithColor_CacheHit(t *testing.T) {
+	face1 := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	face2 := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	if face1 != face2 {
+		t.Error("same params should return cached face (pointer equality)")
+	}
+}
+
+func TestLoadFontWithColor_CacheHitAcrossCalls(t *testing.T) {
+	faceA := loadFontWithColor(14.0, canvas.FontBold, color.RGBA{0, 255, 0, 255})
+	_ = loadFontWithColor(10.0, canvas.FontRegular, color.RGBA{255, 0, 0, 255})
+	faceB := loadFontWithColor(14.0, canvas.FontBold, color.RGBA{0, 255, 0, 255})
+	if faceA != faceB {
+		t.Error("cache should persist across interleaved calls")
+	}
+}
+
+func TestLoadFontWithColor_DifferentSizeMiss(t *testing.T) {
+	faceA := loadFontWithColor(10.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	faceB := loadFontWithColor(20.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	if faceA == faceB {
+		t.Error("different sizes should produce different cache entries")
+	}
+}
+
+func TestLoadFontWithColor_DifferentStyleMiss(t *testing.T) {
+	faceA := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	faceB := loadFontWithColor(12.0, canvas.FontBold, color.RGBA{255, 255, 255, 255})
+	if faceA == faceB {
+		t.Error("regular vs bold should produce different cache entries")
+	}
+}
+
+func TestLoadFontWithColor_DifferentColorMiss(t *testing.T) {
+	faceA := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	faceB := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{0, 0, 0, 255})
+	if faceA == faceB {
+		t.Error("white vs black fill should produce different cache entries")
+	}
+}
+
+func TestLoadFontWithColor_ColorNearEdges(t *testing.T) {
+	faceA := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	faceB := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	if faceA != faceB {
+		t.Error("max white should cache hit")
+	}
+
+	faceC := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{0, 0, 0, 0})
+	faceD := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{0, 0, 0, 0})
+	if faceC != faceD {
+		t.Error("transparent black should cache hit")
+	}
+
+	if faceA == faceC {
+		t.Error("white and transparent black must be different cache entries")
+	}
+}
+
+func TestLoadFontWithColor_SizeVariations(t *testing.T) {
+	sizes := []float64{0, 1, 8, 12, 16, 24, 36, 72, 144, 999}
+	faces := make(map[float64]*canvas.FontFace)
+
+	for _, sz := range sizes {
+		faces[sz] = loadFontWithColor(sz, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	}
+
+	visited := make(map[*canvas.FontFace]float64)
+	for sz, face := range faces {
+		if existingSz, ok := visited[face]; ok {
+			t.Errorf("size %.0f collided with size %.0f: same face pointer", sz, existingSz)
+		}
+		visited[face] = sz
+	}
+}
+
+func TestLoadFontWithColor_StyleCombinations(t *testing.T) {
+	styles := []struct {
+		name  string
+		style canvas.FontStyle
+	}{
+		{"regular", canvas.FontRegular},
+		{"bold", canvas.FontBold},
+		{"italic", canvas.FontItalic},
+		{"bold-italic", canvas.FontBold | canvas.FontItalic},
+	}
+
+	faces := make(map[string]*canvas.FontFace)
+	for _, s := range styles {
+		faces[s.name] = loadFontWithColor(16.0, s.style, color.RGBA{255, 255, 255, 255})
+	}
+
+	visited := make(map[*canvas.FontFace]string)
+	for name, face := range faces {
+		if existingName, ok := visited[face]; ok {
+			t.Errorf("style %q collided with %q: same face pointer", name, existingName)
+		}
+		visited[face] = name
+	}
+}
+
+func TestLoadFontWithColor_ColorPalette(t *testing.T) {
+	colors := []color.RGBA{
+		{255, 255, 255, 255},
+		{0, 0, 0, 255},
+		{255, 0, 0, 255},
+		{0, 255, 0, 255},
+		{0, 0, 255, 255},
+		{128, 128, 128, 255},
+		{231, 76, 60, 255},
+		{241, 196, 15, 255},
+		{39, 174, 96, 255},
+		{127, 140, 141, 255},
+	}
+
+	faces := make(map[int]*canvas.FontFace)
+	for i, c := range colors {
+		faces[i] = loadFontWithColor(16.0, canvas.FontRegular, c)
+	}
+
+	visited := make(map[*canvas.FontFace]int)
+	for i, face := range faces {
+		if existingIdx, ok := visited[face]; ok {
+			t.Errorf("color[%d] collided with color[%d]: same face pointer", i, existingIdx)
+		}
+		visited[face] = i
+	}
+}
+
+func TestLoadFontWithColor_ReturnsValidFace(t *testing.T) {
+	face := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	if face == nil {
+		t.Fatal("loadFontWithColor returned nil")
+	}
+	_ = face.Metrics()
+}
+
+func TestLoadFont_SeparateCache(t *testing.T) {
+	faceA := loadFontWithColor(12.0, canvas.FontRegular, color.RGBA{255, 255, 255, 255})
+	faceB, err := loadFont(12.0, canvas.FontRegular)
+	if err != nil {
+		t.Fatalf("loadFont failed: %v", err)
+	}
+	if faceA == faceB {
+		t.Error("loadFontWithColor(white) and loadFont(black) should be different")
+	}
+
+	faceC, err := loadFont(12.0, canvas.FontRegular)
+	if err != nil {
+		t.Fatalf("loadFont failed: %v", err)
+	}
+	if faceB != faceC {
+		t.Error("loadFont cache miss on repeated call")
 	}
 }
