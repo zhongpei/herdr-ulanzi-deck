@@ -140,11 +140,13 @@ type NavSpaceData struct {
 	Active    bool   `json:"active"`
 }
 
-// StatsData describes the K14 stats bar.
+// StatsData describes the K14 stats bar with optional system CPU/memory overlay.
 type StatsData struct {
-	KeyID string     `json:"keyId"`
-	Type  string     `json:"type"`
-	Stats AgentStats `json:"stats"`
+	KeyID         string     `json:"keyId"`
+	Type          string     `json:"type"`
+	Stats         AgentStats `json:"stats"`
+	CPUPercent    float64    `json:"cpuPercent"`
+	MemoryPercent float64    `json:"memPercent"`
 }
 
 // EmptyKeyData describes an unused key slot.

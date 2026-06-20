@@ -89,11 +89,11 @@ var (
 	bm       *mapper.Mapper
 	ir       *render.Renderer
 	dc       *deck.Client
-	st        *appstate.Store
-	sysColl   *sysstats.Collector
-	lastHash  string
-	tunnels   []*herdr.Tunnel
-	bridge    *herdr.Bridge
+	st       *appstate.Store
+	sysColl  *sysstats.Collector
+	lastHash string
+	tunnels  []*herdr.Tunnel
+	bridge   *herdr.Bridge
 )
 
 // ─── Callbacks (called from ReadPump goroutine) ─────────────
@@ -271,10 +271,22 @@ func runMain(cmd *cobra.Command, args []string) error {
 	defer renderTick.Stop()
 	refreshTick := time.NewTicker(2 * time.Second)
 	defer refreshTick.Stop()
+	sysTick := time.NewTicker(10 * time.Second)
+	defer sysTick.Stop()
 
 	loopIter := 0
 	for {
 		select {
+		case <-sysTick.C:
+			// Collect system CPU/memory stats for K14 at reduced frequency.
+			if sysStats, err := sysColl.Collect(); err == nil {
+				st.SetSysStats(sysStats.CPUPercent, sysStats.MemoryPercent)
+				log.Debug().
+					Float64("cpu", sysStats.CPUPercent).
+					Float64("mem", sysStats.MemoryPercent).
+					Msg("sys stats collected")
+			}
+
 		case <-refreshTick.C:
 			// Periodic herdr data refresh
 			loopIter++
@@ -282,21 +294,10 @@ func runMain(cmd *cobra.Command, args []string) error {
 			st.RefreshHerdrData(unified)
 			// Force a refresh cycle even if re-seed is needed
 			allAgents := sm.GetAllAgents()
-			// Collect system CPU/memory stats for K11 ALL button
-			if sysStats, err := sysColl.Collect(); err == nil {
-				st.SetSysStats(sysStats.CPUPercent, sysStats.MemoryPercent)
-				log.Debug().
-					Int("workspaces", len(unified)).
-					Int("agents", len(allAgents)).
-					Float64("cpu", sysStats.CPUPercent).
-					Float64("mem", sysStats.MemoryPercent).
-					Msg("herdr data + sys stats refreshed")
-			} else {
-				log.Debug().
-					Int("workspaces", len(unified)).
-					Int("agents", len(allAgents)).
-					Msg("herdr data refreshed")
-			}
+			log.Debug().
+				Int("workspaces", len(unified)).
+				Int("agents", len(allAgents)).
+				Msg("herdr data refreshed")
 
 		case <-renderTick.C:
 
@@ -394,7 +395,7 @@ func renderAll() {
 			svg = ir.RenderNavSpace(*k.NavSpc)
 			kt = "navSpace"
 		case k.Stats != nil:
-			svg = ir.RenderStatsKey(k.Stats.Stats)
+			svg = ir.RenderStatsKey(*k.Stats)
 			kt = "stats"
 			log.Debug().
 				Int("done", k.Stats.Stats.Done).

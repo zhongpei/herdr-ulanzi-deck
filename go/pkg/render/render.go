@@ -143,37 +143,20 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 	return toDataURI(svg)
 }
 
-// ─── ALL button (K11) with CPU/MEM overlay ────────────────
+// ─── ALL button (K11) ──────────────────────────────────────
 func (r *Renderer) RenderNavAll(d types.NavAllData) string {
 	fill := "#3a3a3a"
 	if d.Active {
 		fill = "#4A90D9"
 	}
-
-cpuStr := formatPercentValue(d.CPUPercent)
-memStr := formatPercentValue(d.MemoryPercent)
-
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" rx="8" fill="%[1]s"/>
-  <text x="50" y="52" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="24" font-weight="800">%[2]s</text>
-  <text x="150" y="52" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="24" font-weight="800">%[3]s</text>
-  <text x="50" y="70" text-anchor="middle" fill="#aaa"
-        font-family="sans-serif" font-size="12" font-weight="600">CPU</text>
-  <text x="150" y="70" text-anchor="middle" fill="#aaa"
-        font-family="sans-serif" font-size="12" font-weight="600">MEM</text>
-  <line x1="24" y1="82" x2="176" y2="82" stroke="#555" stroke-width="1" opacity="0.35"/>
-  <text x="100" y="135" text-anchor="middle" fill="white"
+  <rect width="200" height="200" rx="8" fill="%s"/>
+  <text x="100" y="115" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="36" font-weight="800">ALL</text>
   <rect x="155" y="178" width="40" height="18" rx="4" fill="#222" opacity="0.7"/>
   <text x="175" y="192" text-anchor="middle" fill="#00D084"
         font-family="sans-serif" font-size="16" font-weight="700">Go</text>
-</svg>`,
-		fill,
-		cpuStr,
-		memStr,
-	)
+</svg>`, fill)
 	return toDataURI(svg)
 }
 
@@ -237,10 +220,13 @@ func (r *Renderer) RenderNavSpace(d types.NavSpaceData) string {
 	return toDataURI(svg)
 }
 
-// ─── Stats bar (K14 - wide key) ──────────────────────────────
-// Compact colored stats on the right side.
-// Each item: colored letter (status) + white number, spaced for readability.
-func (r *Renderer) RenderStatsKey(stats types.AgentStats) string {
+// ─── Stats bar (K14 - wide key) with CPU/MEM overlay ──────
+// Compact agent-status stats on the right side of the bottom row.
+// CPU/MEM percentages displayed at top-right with color thresholds:
+//   CPU: <40% white, 40-70% yellow, >=70% red
+//   MEM: <50% white, 50-80% yellow, >=80% red
+func (r *Renderer) RenderStatsKey(d types.StatsData) string {
+	stats := d.Stats
 	items := []struct {
 		Label string
 		Count int
@@ -259,24 +245,38 @@ func (r *Renderer) RenderStatsKey(stats types.AgentStats) string {
 	numGap := 4
 	for i := len(items) - 1; i >= 0; i-- {
 		item := items[i]
-		// Skip zero items (but always show D for symmetry)
 		if item.Count == 0 && item.Label != "D" {
 			continue
 		}
-		// Label — colored, right-aligned
-		inner.WriteString(fmt.Sprintf(`
-  <text x="%d" y="185" text-anchor="end" fill="%s"
-        font-family="sans-serif" font-size="28" font-weight="800">%s</text>`,
-			x, item.Color, item.Label,
-		))
-		// Number — white, left-aligned right after the label
-		inner.WriteString(fmt.Sprintf(`
-  <text x="%d" y="185" text-anchor="start" fill="white"
-        font-family="sans-serif" font-size="28" font-weight="800">%d</text>`,
-			x+numGap, item.Count,
-		))
+		labelLine := fmt.Sprintf(`<text x="%d" y="185" text-anchor="end" fill="%s" font-family="sans-serif" font-size="28" font-weight="800">%s</text>`, x, item.Color, item.Label)
+		numLine := fmt.Sprintf(`<text x="%d" y="185" text-anchor="start" fill="white" font-family="sans-serif" font-size="28" font-weight="800">%d</text>`, x+numGap, item.Count)
+		inner.WriteString("\n  " + labelLine + "\n  " + numLine)
 		x -= step
 	}
+
+	// CPU/MEM at top-right
+	cpuPct := formatPct(d.CPUPercent)
+	cpuCol := cpuColor(d.CPUPercent)
+	if d.CPUPercent <= 0.01 {
+		cpuPct = "--"
+		cpuCol = "#555"
+	}
+	memPct := formatPct(d.MemoryPercent)
+	memCol := memColor(d.MemoryPercent)
+	if d.MemoryPercent <= 0.01 {
+		memPct = "--"
+		memCol = "#555"
+	}
+
+	// CPU/MEM row at top-right: "CPU 45%  MEM 62%"
+	inner.WriteString("\n  ")
+	inner.WriteString(fmt.Sprintf(`<text x="290" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="14" font-weight="800">CPU</text>`))
+	inner.WriteString("\n  ")
+	inner.WriteString(fmt.Sprintf(`<text x="320" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="18" font-weight="800">%s</text>`, cpuCol, cpuPct))
+	inner.WriteString("\n  ")
+	inner.WriteString(fmt.Sprintf(`<text x="336" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="14" font-weight="800">MEM</text>`))
+	inner.WriteString("\n  ")
+	inner.WriteString(fmt.Sprintf(`<text x="366" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="18" font-weight="800">%s</text>`, memCol, memPct))
 
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">%s
 </svg>`, inner.String())
@@ -297,13 +297,33 @@ func toDataURI(svg string) string {
 	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
 }
 
-// formatPercentValue formats a percentage value with "%" suffix, or "--"
-// when the value is effectively zero (first baseline not yet available).
-func formatPercentValue(v float64) string {
-	if v <= 0.01 {
-		return "--"
-	}
+// formatPct formats a percentage value as an integer with "%" suffix.
+func formatPct(v float64) string {
 	return fmt.Sprintf("%.0f", v) + "%"
+}
+
+// cpuColor returns the display color for a CPU percentage.
+// <40% white, 40-70% yellow, >=70% red.
+func cpuColor(pct float64) string {
+	if pct >= 70 {
+		return "#E74C3C"
+	}
+	if pct >= 40 {
+		return "#F1C40F"
+	}
+	return "#FFFFFF"
+}
+
+// memColor returns the display color for a memory percentage.
+// <50% white, 50-80% yellow, >=80% red.
+func memColor(pct float64) string {
+	if pct >= 80 {
+		return "#E74C3C"
+	}
+	if pct >= 50 {
+		return "#F1C40F"
+	}
+	return "#FFFFFF"
 }
 
 func escapeXML(s string) string {

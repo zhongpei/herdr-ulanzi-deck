@@ -196,12 +196,14 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 		},
 	})
 
-	// K14: stats
+	// K14: stats with system CPU/memory
 	keys = append(keys, types.KeyCommand{
 		Stats: &types.StatsData{
-			KeyID: "stats",
-			Type:  "stats",
-			Stats: stats,
+			KeyID:         "stats",
+			Type:          "stats",
+			Stats:         stats,
+			CPUPercent:    cpuPct,
+			MemoryPercent: memPct,
 		},
 	})
 

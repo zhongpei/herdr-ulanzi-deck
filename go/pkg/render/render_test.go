@@ -134,26 +134,9 @@ func TestRenderNavAll_Active(t *testing.T) {
 	if !strings.Contains(svg, "#00D084") {
 		t.Error("Go marker should use green color")
 	}
-	if !strings.Contains(svg, "CPU") {
-		t.Error("ALL button should show CPU label")
-	}
-	if !strings.Contains(svg, "MEM") {
-		t.Error("ALL button should show MEM label")
-	}
-}
-
-func TestRenderNavAll_WithSysStats(t *testing.T) {
-	r := New()
-	svg := decodeSVG(r.RenderNavAll(types.NavAllData{
-		Active:        true,
-		CPUPercent:    45.2,
-		MemoryPercent: 67.8,
-	}))
-	if !strings.Contains(svg, "45%") {
-		t.Errorf("expected CPU value 45%% in SVG, got: %s", svg)
-	}
-	if !strings.Contains(svg, "68%") {
-		t.Errorf("expected MEM value 68%% (rounded from 67.8) in SVG")
+	// K11 no longer shows CPU/MEM — they moved to K14
+	if strings.Contains(svg, "CPU") {
+		t.Error("CPU label should NOT be on K11")
 	}
 }
 
@@ -235,12 +218,16 @@ func TestRenderNavSpace_SingleLine(t *testing.T) {
 
 func TestRenderStatsKey_Basic(t *testing.T) {
 	r := New()
-	svg := decodeSVG(r.RenderStatsKey(types.AgentStats{
-		Done:    3,
-		Idle:    2,
-		Working: 4,
-		Blocked: 1,
-		Unknown: 0,
+	svg := decodeSVG(r.RenderStatsKey(types.StatsData{
+		Stats: types.AgentStats{
+			Done:    3,
+			Idle:    2,
+			Working: 4,
+			Blocked: 1,
+			Unknown: 0,
+		},
+		CPUPercent:    23.5,
+		MemoryPercent: 45.2,
 	}))
 	// Each item is now two <text> elements: colored letter + white number
 	if !strings.Contains(svg, ">D<") {
@@ -256,7 +243,7 @@ func TestRenderStatsKey_Basic(t *testing.T) {
 		t.Error("should show Idle count 2")
 	}
 	if !strings.Contains(svg, ">W<") {
-		t.Error("should show Working label W")
+	t.Error("should show Working label W")
 	}
 	if !strings.Contains(svg, ">4<") {
 		t.Error("should show Working count 4")
@@ -278,16 +265,33 @@ func TestRenderStatsKey_Basic(t *testing.T) {
 	if !strings.Contains(svg, `fill="#E74C3C"`) {
 		t.Error("B should use red")
 	}
+	// CPU/MEM labels (white) and values should be present
+	if !strings.Contains(svg, ">CPU<") {
+		t.Error("K14 should show CPU label")
+	}
+	if !strings.Contains(svg, ">MEM<") {
+		t.Error("K14 should show MEM label")
+	}
+	if !strings.Contains(svg, "24%") {
+		t.Error("K14 should show CPU value 24%%")
+	}
+	if !strings.Contains(svg, "45%") {
+		t.Error("K14 should show MEM value 45%%")
+	}
 }
 
 func TestRenderStatsKey_ZeroHidden(t *testing.T) {
 	r := New()
-	svg := decodeSVG(r.RenderStatsKey(types.AgentStats{
-		Done:    1,
-		Idle:    0,
-		Working: 0,
-		Blocked: 0,
-		Unknown: 0,
+	svg := decodeSVG(r.RenderStatsKey(types.StatsData{
+		Stats: types.AgentStats{
+			Done:    1,
+			Idle:    0,
+			Working: 0,
+			Blocked: 0,
+			Unknown: 0,
+		},
+		CPUPercent:    23.5,
+		MemoryPercent: 45.2,
 	}))
 	if !strings.Contains(svg, ">1<") {
 		t.Error("should show D count 1")
