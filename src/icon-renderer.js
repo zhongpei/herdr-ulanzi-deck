@@ -120,15 +120,36 @@ export class IconRenderer {
 	}
 
 	// ─── Space cycle button (K13) ─────────────────────────────
+	// Bold uppercase space name, auto line-break on separators
 	renderNavSpace(data) {
-		const label =
+		const raw =
 			data.active && data.nextLabel ? this.escapeXml(data.nextLabel) : "...";
+		const upper = raw.toUpperCase();
+		// Smart line break: split on dash/underscore/dot, prefer first break point
+		let line1 = upper;
+		let line2 = "";
+		const sepMatch = upper.match(/^(.+?)[-_\s.](.+)$/);
+		if (sepMatch) {
+			line1 = sepMatch[1];
+			line2 = sepMatch[2];
+		}
+		// Truncate if still too long
+		if (line1.length > 10) { line1 = line1.slice(0, 9) + "…"; line2 = ""; }
+		if (line2.length > 10) { line2 = line2.slice(0, 9) + "…"; }
+
+		const textY = line2 ? "95" : "112";
+		const line2El = line2
+			? `<text x="100" y="130" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="26" font-weight="800">${line2}</text>`
+			: "";
+
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" rx="8" fill="#2a2a2a"/>
-  <text x="100" y="105" text-anchor="middle" fill="#aaa"
-        font-family="sans-serif" font-size="20" font-weight="600">WS</text>
-  <text x="100" y="165" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="22" font-weight="700">${label}</text>
+  <rect width="200" height="200" rx="8" fill="#333"/>
+  <text x="100" y="${textY}" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="28" font-weight="800">${line1}</text>
+  ${line2El}
+  <text x="100" y="178" text-anchor="middle" fill="#888"
+        font-family="sans-serif" font-size="14" font-weight="600">WS</text>
 </svg>`;
 		return this.toDataUri(svg);
 	}
