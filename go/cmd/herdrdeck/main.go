@@ -21,6 +21,7 @@ import (
 	"github.com/herdr-deck/herdrdeck/pkg/profile"
 	"github.com/herdr-deck/herdrdeck/pkg/render"
 	"github.com/herdr-deck/herdrdeck/pkg/state"
+	"github.com/herdr-deck/herdrdeck/pkg/sysstats"
 	"github.com/herdr-deck/herdrdeck/pkg/types"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -88,10 +89,11 @@ var (
 	bm       *mapper.Mapper
 	ir       *render.Renderer
 	dc       *deck.Client
-	st       *appstate.Store
-	lastHash string
-	tunnels  []*herdr.Tunnel
-	bridge   *herdr.Bridge
+	st        *appstate.Store
+	sysColl   *sysstats.Collector
+	lastHash  string
+	tunnels   []*herdr.Tunnel
+	bridge    *herdr.Bridge
 )
 
 // ─── Callbacks (called from ReadPump goroutine) ─────────────
@@ -161,6 +163,7 @@ func runMain(cmd *cobra.Command, args []string) error {
 	ir = render.New()
 	bm = mapper.New(sm)
 	st = appstate.New(sm, bm)
+	sysColl = sysstats.New()
 
 	// ── Load herdr data ─────────────────────────────────────
 	cfg, err := herdr.LoadConfig()
@@ -279,12 +282,24 @@ func runMain(cmd *cobra.Command, args []string) error {
 			st.RefreshHerdrData(unified)
 			// Force a refresh cycle even if re-seed is needed
 			allAgents := sm.GetAllAgents()
-			log.Debug().
-				Int("workspaces", len(unified)).
-				Int("agents", len(allAgents)).
-				Msg("herdr data refreshed")
+			// Collect system CPU/memory stats for K11 ALL button
+			if sysStats, err := sysColl.Collect(); err == nil {
+				st.SetSysStats(sysStats.CPUPercent, sysStats.MemoryPercent)
+				log.Debug().
+					Int("workspaces", len(unified)).
+					Int("agents", len(allAgents)).
+					Float64("cpu", sysStats.CPUPercent).
+					Float64("mem", sysStats.MemoryPercent).
+					Msg("herdr data + sys stats refreshed")
+			} else {
+				log.Debug().
+					Int("workspaces", len(unified)).
+					Int("agents", len(allAgents)).
+					Msg("herdr data refreshed")
+			}
 
 		case <-renderTick.C:
+
 			if loopIter%2000 == 0 && loopIter > 0 {
 				log.Debug().Int("iter", loopIter).Msg("event loop heartbeat")
 			}

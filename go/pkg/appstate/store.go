@@ -7,6 +7,8 @@
 package appstate
 
 import (
+	"fmt"
+
 	"github.com/herdr-deck/herdrdeck/pkg/deck"
 	"github.com/herdr-deck/herdrdeck/pkg/mapper"
 	"github.com/herdr-deck/herdrdeck/pkg/state"
@@ -72,22 +74,27 @@ func (s *Store) RefreshHerdrData(unified []types.UnifiedWorkspace) {
 
 // Snapshot holds render-relevant state at a point in time.
 type Snapshot struct {
-	TopAgents []types.AgentInfo
-	Mode      mapper.FilterMode
-	ConnName  string
-	WsID      string
-	Stats     types.AgentStats
-	hash      string
+	TopAgents     []types.AgentInfo
+	Mode          mapper.FilterMode
+	ConnName      string
+	WsID          string
+	Stats         types.AgentStats
+	CPUPercent    float64
+	MemoryPercent float64
+	hash          string
 }
 
 // Capture reads the current state from the store and returns a Snapshot.
 func (s *Store) Capture() *Snapshot {
+	cpu, mem := s.sm.GetSysStats()
 	snap := &Snapshot{
-		TopAgents: s.sm.GetFilteredAgents(s.mapper.ConnName, s.mapper.WsID),
-		Mode:      s.mapper.Mode,
-		ConnName:  s.mapper.ConnName,
-		WsID:      s.mapper.WsID,
-		Stats:     s.sm.ComputeStats(),
+		TopAgents:     s.sm.GetFilteredAgents(s.mapper.ConnName, s.mapper.WsID),
+		Mode:          s.mapper.Mode,
+		ConnName:      s.mapper.ConnName,
+		WsID:          s.mapper.WsID,
+		Stats:         s.sm.ComputeStats(),
+		CPUPercent:    cpu,
+		MemoryPercent: mem,
 	}
 	snap.hash = snap.visualHash()
 	return snap
@@ -111,6 +118,13 @@ func (s *Store) MarkClean() {
 	s.dirty = false
 }
 
+// SetSysStats updates system CPU/memory percentages in the state manager
+// and marks the store dirty so the next render tick picks them up.
+func (s *Store) SetSysStats(cpu, mem float64) {
+	s.sm.SetSysStats(cpu, mem)
+	s.dirty = true
+}
+
 // ForceDirty marks the store dirty to trigger re-render (used after reconnect).
 func (s *Store) ForceDirty() {
 	s.dirty = true
@@ -131,6 +145,9 @@ func (s *Snapshot) visualHash() string {
 	fp += "M" + itoa(int(s.Mode)) + "|" + s.ConnName + "|" + s.WsID + "\n"
 	fp += "S" + itoa(s.Stats.Done) + itoa(s.Stats.Idle) +
 		itoa(s.Stats.Working) + itoa(s.Stats.Blocked) + itoa(s.Stats.Unknown)
+	cpuStr := fmt.Sprintf("%.1f", s.CPUPercent)
+	memStr := fmt.Sprintf("%.1f", s.MemoryPercent)
+	fp += "CPU" + cpuStr + "|MEM" + memStr
 	return fp
 }
 

@@ -134,6 +134,27 @@ func TestRenderNavAll_Active(t *testing.T) {
 	if !strings.Contains(svg, "#00D084") {
 		t.Error("Go marker should use green color")
 	}
+	if !strings.Contains(svg, "CPU") {
+		t.Error("ALL button should show CPU label")
+	}
+	if !strings.Contains(svg, "MEM") {
+		t.Error("ALL button should show MEM label")
+	}
+}
+
+func TestRenderNavAll_WithSysStats(t *testing.T) {
+	r := New()
+	svg := decodeSVG(r.RenderNavAll(types.NavAllData{
+		Active:        true,
+		CPUPercent:    45.2,
+		MemoryPercent: 67.8,
+	}))
+	if !strings.Contains(svg, "45%") {
+		t.Errorf("expected CPU value 45%% in SVG, got: %s", svg)
+	}
+	if !strings.Contains(svg, "68%") {
+		t.Errorf("expected MEM value 68%% (rounded from 67.8) in SVG")
+	}
 }
 
 func TestRenderNavAll_Inactive(t *testing.T) {

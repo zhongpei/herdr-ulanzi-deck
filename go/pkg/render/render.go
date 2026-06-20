@@ -143,20 +143,37 @@ func (r *Renderer) RenderAgentKey(d types.AgentKeyData) string {
 	return toDataURI(svg)
 }
 
-// ─── ALL button (K11) ──────────────────────────────────────
+// ─── ALL button (K11) with CPU/MEM overlay ────────────────
 func (r *Renderer) RenderNavAll(d types.NavAllData) string {
 	fill := "#3a3a3a"
 	if d.Active {
 		fill = "#4A90D9"
 	}
+
+cpuStr := formatPercentValue(d.CPUPercent)
+memStr := formatPercentValue(d.MemoryPercent)
+
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" rx="8" fill="%s"/>
-  <text x="100" y="115" text-anchor="middle" fill="white"
+  <rect width="200" height="200" rx="8" fill="%[1]s"/>
+  <text x="50" y="52" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="24" font-weight="800">%[2]s</text>
+  <text x="150" y="52" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="24" font-weight="800">%[3]s</text>
+  <text x="50" y="70" text-anchor="middle" fill="#aaa"
+        font-family="sans-serif" font-size="12" font-weight="600">CPU</text>
+  <text x="150" y="70" text-anchor="middle" fill="#aaa"
+        font-family="sans-serif" font-size="12" font-weight="600">MEM</text>
+  <line x1="24" y1="82" x2="176" y2="82" stroke="#555" stroke-width="1" opacity="0.35"/>
+  <text x="100" y="135" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="36" font-weight="800">ALL</text>
   <rect x="155" y="178" width="40" height="18" rx="4" fill="#222" opacity="0.7"/>
   <text x="175" y="192" text-anchor="middle" fill="#00D084"
         font-family="sans-serif" font-size="16" font-weight="700">Go</text>
-</svg>`, fill)
+</svg>`,
+		fill,
+		cpuStr,
+		memStr,
+	)
 	return toDataURI(svg)
 }
 
@@ -278,6 +295,15 @@ func (r *Renderer) RenderEmptyKey() string {
 
 func toDataURI(svg string) string {
 	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
+}
+
+// formatPercentValue formats a percentage value with "%" suffix, or "--"
+// when the value is effectively zero (first baseline not yet available).
+func formatPercentValue(v float64) string {
+	if v <= 0.01 {
+		return "--"
+	}
+	return fmt.Sprintf("%.0f", v) + "%"
 }
 
 func escapeXML(s string) string {

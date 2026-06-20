@@ -149,14 +149,17 @@ func (m *Mapper) RenderAll() []types.KeyCommand {
 
 	curMachine := machineCurrent(machines, machineIdx)
 
-	// K11: ALL button
+	// K11: ALL button with system stats
 	isMachineMode := m.Mode == ModeMachine || m.Mode == ModeSpace
+	cpuPct, memPct := m.state.GetSysStats()
 	keys = append(keys, types.KeyCommand{
 		NavAll: &types.NavAllData{
-			KeyID:  "nav_all",
-			Type:   "navAll",
-			Label:  "ALL",
-			Active: m.Mode == ModeAll,
+			KeyID:         "nav_all",
+			Type:          "navAll",
+			Label:         "ALL",
+			Active:        m.Mode == ModeAll,
+			CPUPercent:    cpuPct,
+			MemoryPercent: memPct,
 		},
 	})
 

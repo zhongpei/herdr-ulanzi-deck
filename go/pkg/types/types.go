@@ -111,12 +111,14 @@ type AgentKeyData struct {
 	WsLabel       string `json:"wsLabel"`
 }
 
-// NavAllData describes the K11 ALL button.
+// NavAllData describes the K11 ALL button with system stats overlay.
 type NavAllData struct {
-	KeyID  string `json:"keyId"`
-	Type   string `json:"type"`
-	Label  string `json:"label"`
-	Active bool   `json:"active"`
+	KeyID         string  `json:"keyId"`
+	Type          string  `json:"type"`
+	Label         string  `json:"label"`
+	Active        bool    `json:"active"`
+	CPUPercent    float64 `json:"cpuPercent"`
+	MemoryPercent float64 `json:"memPercent"`
 }
 
 // NavMachineData describes the K12 machine-cycle button.

@@ -11,9 +11,12 @@ import (
 // Manager holds the unified workspace list and change listeners.
 // No pagination. Agents sorted by priority: BLOCKED > DONE > WORKING > IDLE > UNKNOWN.
 // K1-K10 show top 10 after filtering by machine/space.
+// Also stores system CPU/memory stats for the K11 ALL button.
 type Manager struct {
-	unified   []types.UnifiedWorkspace
-	listeners []func(event string, data any)
+	unified       []types.UnifiedWorkspace
+	cpuPercent    float64
+	memoryPercent float64
+	listeners     []func(event string, data any)
 }
 
 // NewManager creates an empty state manager.
@@ -120,6 +123,17 @@ func (m *Manager) GetSpaces(connName string) []types.SpaceRef {
 		}
 	}
 	return spaces
+}
+
+// SetSysStats updates the latest system CPU/memory percentages.
+func (m *Manager) SetSysStats(cpu, mem float64) {
+	m.cpuPercent = cpu
+	m.memoryPercent = mem
+}
+
+// GetSysStats returns the latest system CPU and memory percentages.
+func (m *Manager) GetSysStats() (cpu, mem float64) {
+	return m.cpuPercent, m.memoryPercent
 }
 
 // ComputeStats returns agent state tallies across ALL workspaces.
