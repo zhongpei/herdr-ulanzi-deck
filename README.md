@@ -125,7 +125,14 @@ herdr Unix Socket → client → bridge → StateManager → ButtonMapper → SV
 
 ## Configuration
 
-Create `~/.config/herdr-deck/connections.json`:
+Copy and edit the sample config to your home directory:
+
+```bash
+cp connections.sample.json ~/.config/herdr-deck/connections.json
+# then edit to match your setup
+```
+
+Or create `~/.config/herdr-deck/connections.json` manually:
 
 ```json
 {
@@ -148,6 +155,8 @@ Create `~/.config/herdr-deck/connections.json`:
   ]
 }
 ```
+
+A sample file with mock values is available at [`connections.sample.json`](./connections.sample.json).
 
 ### SSH Tunnel
 

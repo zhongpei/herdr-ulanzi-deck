@@ -88,7 +88,14 @@ node src/index.js 127.0.0.1 3906 zh_CN
 
 ## 配置
 
-创建 `~/.config/herdr-deck/connections.json`:
+拷贝样例文件到 home 目录：
+
+```bash
+cp connections.sample.json ~/.config/herdr-deck/connections.json
+# 根据你的环境修改
+```
+
+或手动创建 `~/.config/herdr-deck/connections.json`:
 
 ```json
 {
@@ -110,6 +117,10 @@ node src/index.js 127.0.0.1 3906 zh_CN
     }
   ]
 }
+```
+
+样例文件在 [`connections.sample.json`](../connections.sample.json)。
+
 ```
 
 ## 按键功能（D200X）

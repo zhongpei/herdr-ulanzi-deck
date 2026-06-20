@@ -1,0 +1,28 @@
+{
+  "connections": [
+    {
+      "name": "local",
+      "abbr": "LCL",
+      "color": "#4ADE80",
+      "type": "local"
+    },
+    {
+      "name": "dev-server",
+      "abbr": "DEV",
+      "color": "#1E3A5F",
+      "type": "ssh",
+      "host": "user@remote-host",
+      "remoteSocket": "/home/user/.config/herdr/herdr.sock",
+      "localPort": 19999
+    },
+    {
+      "name": "prod",
+      "abbr": "PRD",
+      "color": "#F87171",
+      "type": "ssh",
+      "host": "user@prod-host",
+      "remoteSocket": "/home/user/.config/herdr/herdr.sock",
+      "localPort": 19998
+    }
+  ]
+}
