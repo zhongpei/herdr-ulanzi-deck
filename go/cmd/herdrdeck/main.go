@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/herdr-deck/herdrdeck/pkg/deck"
+	"github.com/herdr-deck/herdrdeck/pkg/herdr"
 	"github.com/herdr-deck/herdrdeck/pkg/mapper"
 	"github.com/herdr-deck/herdrdeck/pkg/profile"
 	"github.com/herdr-deck/herdrdeck/pkg/render"
@@ -67,9 +68,36 @@ func main() {
 	iconRenderer = render.New()
 	buttonMapper = mapper.New(stateManager)
 
-	// Init with mock data
-	mockData := buildMockData()
-	stateManager.Init(mockData)
+	// Load config and connect to herdr instances
+	cfg, err := herdr.LoadConfig()
+	if err != nil {
+		log.Printf("[main] config warning: %v", err)
+	}
+
+	// Build bridge with real connections
+	bridge := herdr.NewBridge()
+	for _, c := range cfg.Connections {
+		if c.Type == "local" {
+			socketPath := herdr.FindLocalSocket()
+			if socketPath == "" {
+				log.Printf("[main] no local socket found for %q", c.Name)
+				continue
+			}
+			client := herdr.New(socketPath)
+			bridge.AddConnection(c.Name, c.Abbr, c.Color, client)
+		}
+		// SSH tunnels not yet implemented in Go version
+	}
+
+	// Fetch data from herdr, fall back to mock
+	unified := bridge.FetchAll()
+	if len(unified) == 0 {
+		log.Println("[main] no herdr data, using mock data")
+		unified = buildMockData()
+	}
+	stateManager.Init(unified)
+	log.Printf("[main] %d workspaces, %d total agents",
+		len(unified), len(stateManager.GetAllAgents()))
 
 	// Connect to deck
 	deckClient = deck.New(
