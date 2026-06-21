@@ -103,7 +103,15 @@ func renderDirectPNG(svg string, width, height int, scaleX, scaleY float64) ([]b
 		}
 
 		text := canvas.NewTextLine(freshFace, emojiFilter(t.content), halign)
-		c.RenderText(text, canvas.Identity.Translate(px, py))
+
+		// Bold text: render twice with 1px horizontal offset at canvas level
+		// to create visible weight regardless of system bold font availability.
+		if fontStyle == canvas.FontBold {
+			c.RenderText(text, canvas.Identity.Translate(px-1, py))
+			c.RenderText(text, canvas.Identity.Translate(px+1, py))
+		} else {
+			c.RenderText(text, canvas.Identity.Translate(px, py))
+		}
 	}
 
 	// Draw polylines (used by status icons like checkmark, triangle, bars)

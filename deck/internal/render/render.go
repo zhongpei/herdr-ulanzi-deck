@@ -278,15 +278,15 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		Count int
 		Color string
 	}{
-		{"?", stats.Unknown, "#95A5A6"},
-		{"I", stats.Idle, "#7F8C8D"},
-		{"W", stats.Working, "#F39C12"},
-		{"D", stats.Done, "#27AE60"},
 		{"B", stats.Blocked, "#E74C3C"},
+		{"D", stats.Done, "#27AE60"},
+		{"W", stats.Working, "#F39C12"},
+		{"I", stats.Idle, "#7F8C8D"},
+		{"?", stats.Unknown, "#95A5A6"},
 	}
 
 	var inner strings.Builder
-	x := 370
+	x := 365
 	step := 65
 	numGap := 4
 	for i := len(items) - 1; i >= 0; i-- {
