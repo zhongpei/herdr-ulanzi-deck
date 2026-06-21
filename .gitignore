@@ -4,5 +4,6 @@ herdr/
 *.log
 .DS_Store
 build/
+*.out
 go/build/
 go/herdrdeck
