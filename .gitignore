@@ -5,7 +5,6 @@ herdr/
 .DS_Store
 build/
 *.out
-go/build/
-go/herdrdeck
 /herdr-collector
 /herdr-deck
+js-demo/node_modules/
