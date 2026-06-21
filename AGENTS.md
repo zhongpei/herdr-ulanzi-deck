@@ -1,86 +1,102 @@
-# herdr-deck — AI Agent Guide
+# herdr-agentview — AI Agent Guide
 
 ## Project Overview
 
 Display herdr AI agent status on Ulanzi D200X macro keypad.
 
 **Platform**: macOS, Linux (herdr only supports these)
-**Go version**: `go/` (recommended, actively developed)
-**JS version**: `src/` (demo/reference, matched to Go logic)
+**Architecture**: Three-process (collector + deck + pet)
 
-## Go Development
+## Architecture
 
-### Build & Run
+```
+herdr-collector → embedded NATS → herdr-deck (Ulanzi D200X)
+                               → herdr-pet  (desktop companion, future)
+```
+
+## Go Modules
+
+```
+herdr-agentview/
+├── go.work                    ← Go workspace ties 3 modules together
+├── protocol/                  ← Shared types, enums, NATS subjects
+│   └── go.mod
+├── collector/                 ← State collection + embedded NATS server
+│   ├── go.mod
+│   ├── Makefile
+│   ├── cmd/herdr-collector/main.go
+│   └── internal/{config,herdrclient,tunnel,bridge,fleet,publisher,natsserver}
+├── deck/                      ← Ulanzi D200X hardware display
+│   ├── go.mod
+│   ├── Makefile
+│   ├── cmd/herdr-deck/main.go
+│   └── internal/{subscriber,fleet,viewmodel,render,deckclient,controller,profile,sysstats}
+└── scripts/
+    ├── deploy-collector.sh
+    ├── deploy-deck.sh
+    └── deploy-all.sh
+```
+
+## Build & Run
 
 ```bash
-cd go && make build        # build binary
-./build/herdrdeck --addr 127.0.0.1 --port 3906   # run
-./build/herdrdeck --debug                         # debug mode
-cd go && make run          # build + run in one step
+# Single module
+cd protocol   && go test ./...
+cd collector  && make build && ./build/herdr-collector --debug
+cd deck       && make build && ./build/herdr-deck --debug
+
+# Or via workspace
+go work sync && go vet ./...
+bash scripts/deploy-all.sh
 ```
 
-### Deploy
+## Test
 
 ```bash
-bash scripts/deploy-go.sh
-```
-
-This kills old processes, creates Ulanzi stub plugin, builds Go binary, starts it.
-
-### Test
-
-```bash
-cd go && make test         # all tests
-cd go && go test ./pkg/... # or go test directly
-```
-
-### Code Structure
-
-```
-go/
-├── cmd/herdrdeck/main.go     Entry: cobra CLI, event loop
-├── pkg/
-│   ├── herdr/                herdr connectivity (config, client, bridge, tunnel)
-│   ├── state/                State tree: sort, filter, stats
-│   ├── mapper/               Filter mode → 14 key commands
-│   ├── render/               SVG generation (render.go, colors.go, icons.go)
-│   ├── deck/                 WebSocket → UlanziDeck (client.go, draw.go)
-│   ├── appstate/             Central store (dirty flag, snapshot, hash)
-│   ├── profile/              D200X profile manager
-│   └── types/                Shared data structures
-└── Makefile
-```
-
-### Architecture
-
-- **Event loop**: select with two tickers — renderTick (50ms) + refreshTick (2s)
-- **SSH tunnel**: `ssh -NL <localPort>:<remoteSocket> <host>` via tunnel.go
-- **Logger**: zerolog (colored ConsoleWriter, 4 levels)
-- **CLI**: cobra (--addr, --port, --debug)
-
-## JS Development
-
-```bash
-bash scripts/deploy-and-run.sh    # deploy JS plugin
-node tests/herdr-client.test.js   # run herdr-client tests
-node tests/connection-manager.test.js
-node tests/filter-buttons.test.js
+cd collector && make test     # 14 tests in 8 packages
+cd deck      && make test     # 53 tests in 9 packages
+cd protocol  && go test ./... # 4 tests
 ```
 
 ## Config
 
-`~/.config/herdr-deck/connections.json` — see `connections.sample.json` for reference.
+- collector reads: `~/.config/herdr-deck/connections.json`
+- deck uses CLI flags: `--nats`, `--addr`, `--port`, `--k11-toggle`, `--debug`
+
+## Data Flow
+
+```
+Herdr local socket / SSH tunnel
+        │
+        ▼
+herdr-collector (2s fetch)
+  ├── fleet.Store (state + TTL)
+  ├── embedded NATS (nats://127.0.0.1:4222)
+  │     ├── herdr.v1.snapshot.full (full fleet state)
+  │     └── herdr.v1.collector.heartbeat (1s liveness)
+  │
+  ▼
+herdr-deck (50ms render)
+  ├── subscriber (NATS → FleetSnapshot)
+  ├── fleet.Manager (sort/filter/stats/duration)
+  ├── viewmodel.Builder (14 KeyCommand)
+  ├── render (SVG)
+  ├── deckclient (SVG→PNG→WebSocket → UlanziDeck)
+  └── profile (D200X profile auto-create)
+```
+
+## Dependencies
+
+| Module | Depends on |
+|--------|-----------|
+| protocol | (none) |
+| collector | protocol, nats-server, nats.go, zerolog, cobra |
+| deck | protocol, nats.go, gorilla/websocket, tdewolff/canvas, gopsutil, zerolog, cobra |
 
 ## Important Rules
 
-1. After modifying `go/**/*.go` → run `bash scripts/deploy-go.sh` or `cd go && make run`
-2. After modifying `src/*.js` → run `bash scripts/deploy-and-run.sh`
-3. Keep JS implementation in sync with Go (same SSH tunnel approach, same data structures)
-4. Run all tests before committing: Go tests + JS tests
-5. Don't run multiple plugin instances simultaneously
-
-## Docs
-
-- `docs/architecture.md` — System architecture
-- `docs/modules.md` — Module-level documentation (Go + JS)
-- `docs/development-guide.md` — Detailed dev guide
+1. After modifying Go files → run `go vet ./... && go test ./...` in the affected module
+2. Never cross-import between collector and deck
+3. Only protocol types on the NATS wire
+4. Deck never connects to herdr directly — all state via NATS
+5. K11Toggle is a deck-side preference (CLI flag, not in connections.json)
