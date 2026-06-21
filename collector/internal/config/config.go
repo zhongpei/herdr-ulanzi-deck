@@ -95,12 +95,3 @@ func FindLocalSocket() string {
 	}
 	return ""
 }
-
-// ConnectAndFetch connects to all configured herdr instances and
-// returns the merged UnifiedWorkspace list.
-// Falls back to nil if no connections succeed.
-func ConnectAndFetch(cfg *AppConfig) []byte {
-	// TODO: return proper typed data - for now using json.RawMessage path
-	// through the bridge
-	return nil
-}
