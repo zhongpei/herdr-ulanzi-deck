@@ -5,5 +5,6 @@ use (
 	./deck
 	./displaymodel
 	./e2e
+	./panel
 	./protocol
 )

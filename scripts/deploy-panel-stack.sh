@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy-all.sh — build and start collector + deck + panel (everything)
+# deploy-panel-stack.sh — build and start collector + panel (desktop)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -7,7 +7,6 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "=== Killing old processes ==="
 pkill -f "herdr-collector" 2>/dev/null || true
-pkill -f "herdr-deck" 2>/dev/null || true
 pkill -f "herdr-panel" 2>/dev/null || true
 sleep 1
 
@@ -39,33 +38,16 @@ if [ "$COLLECTOR_OK" != "true" ]; then
 	exit 1
 fi
 
-# ── Deck ──────────────────────────────────────────────────
-echo "=== Building deck ==="
-cd "$REPO_ROOT/deck"
-make build
-
-echo "=== Starting deck ==="
-./build/herdr-deck --debug &
-DECK_PID=$!
-echo "Deck PID: $DECK_PID"
-
-sleep 3
-if ! kill -0 $DECK_PID 2>/dev/null; then
-	echo "Deck failed to start — retrying once"
-	./build/herdr-deck --debug &
-	DECK_PID=$!
-	echo "Deck PID: $DECK_PID"
-fi
-
 # ── Panel ─────────────────────────────────────────────────
 echo "=== Building panel ==="
 cd "$REPO_ROOT/panel"
 make build
 
 echo "=== Starting panel ==="
+# Run panel in background — it's a GUI app, keeps running in its own window
 ./build/herdr-panel --debug &
 PANEL_PID=$!
 echo "Panel PID: $PANEL_PID"
 
-echo "=== Full stack running (collector + deck + panel) ==="
-wait $COLLECTOR_PID $DECK_PID $PANEL_PID
+echo "=== Desktop stack running ==="
+wait $COLLECTOR_PID $PANEL_PID

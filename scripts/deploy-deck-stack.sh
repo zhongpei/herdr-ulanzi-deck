@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy-all.sh — build and start collector + deck + panel (everything)
+# deploy-deck-stack.sh — build and start collector + deck (hardware)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -8,7 +8,6 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 echo "=== Killing old processes ==="
 pkill -f "herdr-collector" 2>/dev/null || true
 pkill -f "herdr-deck" 2>/dev/null || true
-pkill -f "herdr-panel" 2>/dev/null || true
 sleep 1
 
 # ── Collector ──────────────────────────────────────────────
@@ -57,15 +56,5 @@ if ! kill -0 $DECK_PID 2>/dev/null; then
 	echo "Deck PID: $DECK_PID"
 fi
 
-# ── Panel ─────────────────────────────────────────────────
-echo "=== Building panel ==="
-cd "$REPO_ROOT/panel"
-make build
-
-echo "=== Starting panel ==="
-./build/herdr-panel --debug &
-PANEL_PID=$!
-echo "Panel PID: $PANEL_PID"
-
-echo "=== Full stack running (collector + deck + panel) ==="
-wait $COLLECTOR_PID $DECK_PID $PANEL_PID
+echo "=== Hardware stack running ==="
+wait $COLLECTOR_PID $DECK_PID

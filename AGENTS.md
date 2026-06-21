@@ -2,16 +2,16 @@
 
 ## Project Overview
 
-Display herdr AI agent status on Ulanzi D200X macro keypad.
+Display herdr AI agent status on Ulanzi D200X macro keypad and desktop panel.
 
-**Platform**: macOS, Linux (herdr only supports these)
-**Architecture**: Three-process (collector + deck + pet)
+**Platform**: macOS, Linux, Windows
+**Architecture**: Three-process (collector + deck + panel)
 
 ## Architecture
 
 ```
-herdr-collector → embedded NATS → herdr-deck (Ulanzi D200X)
-                               → herdr-pet  (desktop companion, future)
+herdr-collector → embedded NATS → herdr-deck   (Ulanzi D200X)
+                               → herdr-panel  (desktop reminder panel)
 ```
 
 ## Go Modules
@@ -35,6 +35,10 @@ herdr-agentview/
 │   ├── go.mod
 │   ├── model.go
 │   └── builder.go
+├── panel/                     ← Desktop reminder panel (Fyne GUI)
+│   ├── go.mod
+│   ├── cmd/herdr-panel/main.go
+│   └── internal/{subscriber,state,app,ui,alert,sysstats}
 └── scripts/
     ├── deploy-collector.sh
     ├── deploy-deck.sh
@@ -49,6 +53,7 @@ cd protocol     && go test ./...
 cd displaymodel && go test ./...
 cd collector    && make build && ./build/herdr-collector --debug
 cd deck         && make build && ./build/herdr-deck --debug
+cd panel        && go build -o build/herdr-panel ./cmd/herdr-panel/
 
 # Or via workspace
 go work sync && go vet ./...
@@ -59,6 +64,7 @@ bash scripts/deploy-all.sh
 
 - collector reads: `~/.config/herdr-deck/connections.json`
 - deck uses CLI flags: `--nats`, `--addr`, `--port`, `--k11-toggle`, `--debug`
+- panel uses CLI flags: `--nats`, `--debug`
 
 ## Data Flow
 
@@ -81,6 +87,19 @@ herdr-deck (50ms render)
   ├── render (SVG)
   ├── deckclient (SVG→PNG→WebSocket → UlanziDeck)
   └── profile (D200X profile auto-create)
+
+  ▼
+herdr-panel (1s refresh)
+  ├── subscriber (NATS → FleetSnapshot)
+  ├── state.Store (latest snapshot + ViewState + health)
+  ├── displaymodel.Builder (ViewState → Model)
+  ├── ui/main_window    (Fyne window, close→tray, remember geometry)
+  ├── ui/stats_bar      (K14: agent counts + CPU/MEM)
+  ├── ui/toolbar        (K11: ALL/ACT buttons + K12/K13 dropdowns)
+  ├── ui/card_grid      (2×3 agent status cards, priority truncated)
+  ├── ui/tray           (system tray menu)
+  ├── alert/monitor     (state-change detection + window popup)
+  └── sysstats          (local CPU/MEM)
 ```
 
 ## Dependencies
@@ -91,12 +110,13 @@ herdr-deck (50ms render)
 | displaymodel | protocol |
 | collector | protocol, nats-server, nats.go, zerolog, cobra |
 | deck | protocol, displaymodel, nats.go, gorilla/websocket, tdewolff/canvas, gopsutil, zerolog, cobra |
+| panel | protocol, displaymodel, fyne.io/fyne/v2, nats.go, gopsutil, zerolog, cobra |
 
 ## Important Rules
 
 1. After modifying Go files → run `go vet ./... && go test ./...` in the affected module
-2. Never cross-import between collector and deck
+2. Never cross-import between collector and deck/panel
 3. Only protocol types on the NATS wire
-4. Deck never connects to herdr directly — all state via NATS
+4. Deck/panel never connects to herdr directly — all state via NATS
 5. K11Toggle is a deck-side preference (CLI flag, not in connections.json)
-6. Deck and pet share displaymodel — never duplicate filter/navigation logic
+6. Deck and panel share displaymodel — never duplicate filter/navigation logic
