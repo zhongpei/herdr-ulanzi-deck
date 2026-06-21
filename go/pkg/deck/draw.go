@@ -102,7 +102,7 @@ func renderDirectPNG(svg string, width, height int, scaleX, scaleY float64) ([]b
 			halign = canvas.Right
 		}
 
-		text := canvas.NewTextLine(freshFace, t.content, halign)
+		text := canvas.NewTextLine(freshFace, emojiFilter(t.content), halign)
 		c.RenderText(text, canvas.Identity.Translate(px, py))
 	}
 
@@ -311,13 +311,10 @@ func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
 		return f, nil
 	}
 	family := canvas.NewFontFamily("sans-serif")
-	// Load ALL candidate fonts so the family can fall back per-glyph across
-	// them. Loading only the first match (e.g. "sans-serif") skips Unicode-
-	// capable fonts like Apple Symbols / Arial Unicode MS, and any missing
-	// glyph renders as .notdef (box).
-	//
-	// FontFamily.LoadSystemFont is additive: each call appends a font face to
-	// the family, and Face() consults them in order per character.
+	// Load fonts in priority order. FontFamily.fonts is a map[Style]*Font,
+	// so each successful LoadSystemFont overwrites the previous one for the
+	// same style. The LAST font loaded is the one used for all glyph lookups.
+	// We order names so the most broadly covering font comes last.
 	for _, name := range fontNames() {
 		_ = family.LoadSystemFont(name, style)
 	}
@@ -345,18 +342,93 @@ func loadFontWithColor(size float64, style canvas.FontStyle, fill color.Color) *
 	return face
 }
 
-// fontNames returns the system font names to load, in glyph-fallback order.
-// macOS: Apple Symbols + Arial Unicode MS carry the supplementary plane
-// glyphs (U+21BB ↻, U+26A0 ⚠, U+2713 ✓, U+2016 ‖) that Helvetica/Arial lack.
+// fontNames returns system font names to try, in priority order.
+// FontFamily.fonts is a map (one font per style), so the LAST successfully
+// loaded font is the one used for all glyph lookups. Names are ordered so
+// the font with the broadest Unicode coverage (especially CJK) comes last.
+//
+// All status/agent icon glyphs (✓, ‖, ↻, ⚠, ?) are drawn with SVG primitives
+// in icons.go — no Unicode text — so Apple Symbols is not needed here.
 func fontNames() []string {
 	return []string{
-		"Apple Symbols",
-		"Arial Unicode MS",
+		// Generic Latin fonts (loaded first, overwritten by subsequent fonts)
 		"Helvetica",
 		"Arial",
 		"Liberation Sans",
-		"sans-serif",
+		"DejaVu Sans",
+		"Verdana",
+		"Tahoma",
+		// CJK-capable fonts for Linux (Noto Sans CJK, WenQuanYi)
+		"Noto Sans CJK SC",
+		"Noto Sans CJK JP",
+		"WenQuanYi Micro Hei",
+		"WenQuanYi Zen Hei",
+		// Broad Unicode coverage — loaded LAST so it wins
+		// Arial Unicode MS covers Latin, CJK, Cyrillic, Greek, Arabic, Hebrew, etc.
+		"Arial Unicode MS",
 	}
+}
+
+// emojiFilter replaces emoji codepoints with "?" to avoid .notdef boxes.
+// tdewolff/canvas uses outline font rendering and cannot render color emoji
+// (sbix/CBDT/COLR tables). Common emoji ranges are replaced.
+func emojiFilter(s string) string {
+	if !hasEmoji(s) {
+		return s
+	}
+	runes := []rune(s)
+	for i, r := range runes {
+		if isEmoji(r) {
+			runes[i] = '?'
+		}
+	}
+	return string(runes)
+}
+
+func hasEmoji(s string) bool {
+	for _, r := range s {
+		if isEmoji(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func isEmoji(r rune) bool {
+	// SMP emoji blocks — these are safely all-emoji, no CJK or Latin overlap.
+	// Miscellaneous Symbols and Pictographs
+	if r >= 0x1F300 && r <= 0x1FAFF {
+		return true
+	}
+	// Supplemental Symbols and Pictographs (extended emoji)
+	if r >= 0x1FA00 && r <= 0x1FA6F {
+		return true
+	}
+	// Emoticons (faces)
+	if r >= 0x1F600 && r <= 0x1F64F {
+		return true
+	}
+	// Transport and Map Symbols
+	if r >= 0x1F680 && r <= 0x1F6FF {
+		return true
+	}
+	// Enclosed Ideographic Supplement (emoji variants of CJK)
+	if r >= 0x1F200 && r <= 0x1F2FF {
+		return true
+	}
+	// Regional Indicator Symbols (flag letters)
+	if r >= 0x1F1E6 && r <= 0x1F1FF {
+		return true
+	}
+	// Variation Selectors (emoji presentation selectors)
+	if r >= 0xFE00 && r <= 0xFE0F {
+		return true
+	}
+	// Combining Enclosing Keycap
+	if r == 0x20E3 {
+		return true
+	}
+	return false
 }
 
 // ─── Color helpers ───────────────────────────────────────────
