@@ -36,7 +36,11 @@ func (p *Publisher) PublishSnapshot(snap *protocol.FleetSnapshot) error {
 	if err != nil {
 		return err
 	}
-	return p.nc.Publish(protocol.SubjectSnapshot, data)
+	if err := p.nc.Publish(protocol.SubjectSnapshot, data); err != nil {
+		return err
+	}
+	// Flush to confirm delivery. Timeout avoids blocking the event loop.
+	return p.nc.FlushTimeout(500 * time.Millisecond)
 }
 
 // PublishHeartbeat sends a lightweight heartbeat message on SubjectHeartbeat.

@@ -49,12 +49,17 @@ an embedded NATS server for display processes (herdr-deck, herdr-pet).`,
 
 func runMain(cmd *cobra.Command, args []string) error {
 	debug, _ := cmd.Flags().GetBool("debug")
+	natsPort, _ := cmd.Flags().GetInt("nats-port")
 
 	initLogger(debug)
-	log.Info().Bool("debug", debug).Msg("starting herdr-collector")
+	log.Info().Bool("debug", debug).Int("nats-port", natsPort).Msg("starting herdr-collector")
 
 	// ── Start embedded NATS ──────────────────────────────────
-	srv, err := natsserver.New("", debug)
+	srv, err := natsserver.New(natsserver.Options{
+		Host:  "127.0.0.1",
+		Port:  natsPort,
+		Debug: debug,
+	})
 	if err != nil {
 		return fmt.Errorf("nats server: %w", err)
 	}

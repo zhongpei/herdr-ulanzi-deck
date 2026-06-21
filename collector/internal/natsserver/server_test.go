@@ -8,7 +8,7 @@ import (
 )
 
 func TestServer_NewAndShutdown(t *testing.T) {
-	s, err := New("", false)
+	s, err := New(Options{Debug: false})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestServer_NewAndShutdown(t *testing.T) {
 }
 
 func TestServer_ShutdownTwice(t *testing.T) {
-	s, err := New("", false)
+	s, err := New(Options{Debug: false})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestServer_ShutdownTwice(t *testing.T) {
 }
 
 func TestServer_URL(t *testing.T) {
-	s, err := New("", false)
+	s, err := New(Options{Debug: false})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestServer_URL(t *testing.T) {
 }
 
 func TestServer_PublishSubscribe(t *testing.T) {
-	s, err := New("", false)
+	s, err := New(Options{Debug: false})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

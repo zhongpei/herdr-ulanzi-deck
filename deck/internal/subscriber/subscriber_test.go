@@ -154,10 +154,19 @@ func TestSubscriber_ReceivesHeartbeat(t *testing.T) {
 }
 
 func TestSubscriber_ConnectionFail(t *testing.T) {
-	// Try to connect to a non-existent NATS server
-	_, err := New("nats://127.0.0.1:59999")
-	if err == nil {
-		t.Error("expected error connecting to non-existent NATS")
+	// With RetryOnFailedConnect(true), non-existent NATS should not hard-fail.
+	// Depending on timing, it may return a connecting client or a timeout error.
+	// Both are acceptable — the important thing is no crash and clean close.
+	s, err := New("nats://127.0.0.1:59999")
+	if err == nil && s != nil {
+		// Connector mode: retrying in background
+		if s.snapshotCh == nil {
+			t.Error("snapshotCh should not be nil")
+		}
+		s.Close()
+	} else {
+		// Timeout mode: connect attempt timed out, acceptable
+		t.Logf("NATS connect returned error (acceptable): %v", err)
 	}
 }
 

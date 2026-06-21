@@ -18,13 +18,16 @@ type Subscriber struct {
 }
 
 // New connects to a NATS server and starts subscriptions.
+// With RetryOnFailedConnect, it returns a valid Subscriber even when NATS
+// is not yet reachable — subscriptions are queued until connected.
 func New(natsAddr string) (*Subscriber, error) {
 	nc, err := nats.Connect(natsAddr,
+		nats.RetryOnFailedConnect(true),
 		nats.ReconnectWait(2*time.Second),
 		nats.MaxReconnects(-1),
 	)
 	if err != nil {
-		return nil, err
+		return nil, err // still can fail for invalid addr format
 	}
 
 	s := &Subscriber{
@@ -61,6 +64,13 @@ func New(natsAddr string) (*Subscriber, error) {
 		default:
 		}
 	}); err != nil {
+		nc.Close()
+		return nil, err
+	}
+
+	// Flush subscriptions to confirm they are registered on the server.
+	// Ignores error when NATS is not yet connected (retry is ongoing).
+	if err := nc.FlushTimeout(2 * time.Second); err != nil && nc.Status() != nats.CONNECTING {
 		nc.Close()
 		return nil, err
 	}

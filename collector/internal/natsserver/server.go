@@ -15,20 +15,30 @@ type Server struct {
 	url string
 }
 
-// New starts an embedded NATS server on the given listen address.
+// Options for configuring the embedded NATS server.
+type Options struct {
+	Host  string
+	Port  int
+	Debug bool
+}
+
+// New starts an embedded NATS server with the given options.
 // Returns after the server is ready to accept connections.
-func New(listenAddr string, debug bool) (*Server, error) {
-	opts := &server.Options{
+func New(opts Options) (*Server, error) {
+	srvOpts := &server.Options{
 		Host:   "127.0.0.1",
 		Port:   4222,
-		NoLog:  !debug,
+		NoLog:  !opts.Debug,
 		NoSigs: true,
 	}
-	if listenAddr != "" {
-		// parse host:port from listenAddr
+	if opts.Host != "" {
+		srvOpts.Host = opts.Host
+	}
+	if opts.Port != 0 {
+		srvOpts.Port = opts.Port
 	}
 
-	ns, err := server.NewServer(opts)
+	ns, err := server.NewServer(srvOpts)
 	if err != nil {
 		return nil, err
 	}

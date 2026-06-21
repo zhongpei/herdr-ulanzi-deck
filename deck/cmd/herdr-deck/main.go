@@ -240,8 +240,15 @@ func runMain(cmd *cobra.Command, args []string) error {
 			fm.MarkHeartbeat(time.Now())
 
 		case <-healthTick.C:
-			if h := fm.CheckHealth(); h == fleet.HealthOffline {
-				log.Warn().Msg("collector offline — no heartbeat for 5s")
+			oldHealth := fm.Health()
+			newHealth := fm.CheckHealth()
+			if oldHealth != newHealth {
+				if newHealth == fleet.HealthOffline {
+					log.Warn().Msg("collector went offline")
+				} else {
+					log.Info().Msg("collector back online")
+				}
+				ctrl.MarkDirty()
 			}
 
 		case <-sysTick.C:

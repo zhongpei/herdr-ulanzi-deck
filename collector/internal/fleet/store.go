@@ -153,7 +153,9 @@ func coalesce(ss ...string) string {
 }
 
 // snapshotEqual returns true if two snapshots have the same agent state.
-// Ignores Seq and UpdatedAt (they always change).
+// Ignores Seq, UpdatedAt (top-level), and per-agent UpdatedAt
+// because they are set by the collector on every cycle and do not
+// represent a semantic state change.
 func snapshotEqual(a, b *protocol.FleetSnapshot) bool {
 	if a == nil || b == nil {
 		return false
@@ -168,7 +170,17 @@ func snapshotEqual(a, b *protocol.FleetSnapshot) bool {
 		return false
 	}
 	for i := range a.Agents {
-		if a.Agents[i] != b.Agents[i] {
+		// Compare all fields except UpdatedAt
+		if a.Agents[i].ID != b.Agents[i].ID ||
+			a.Agents[i].Machine != b.Agents[i].Machine ||
+			a.Agents[i].Agent != b.Agents[i].Agent ||
+			a.Agents[i].Name != b.Agents[i].Name ||
+			a.Agents[i].Status != b.Agents[i].Status ||
+			a.Agents[i].Focused != b.Agents[i].Focused ||
+			a.Agents[i].Workspace != b.Agents[i].Workspace ||
+			a.Agents[i].WorkspaceID != b.Agents[i].WorkspaceID ||
+			a.Agents[i].TabLabel != b.Agents[i].TabLabel ||
+			a.Agents[i].PaneID != b.Agents[i].PaneID {
 			return false
 		}
 	}
