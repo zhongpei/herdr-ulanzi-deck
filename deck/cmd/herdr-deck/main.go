@@ -147,7 +147,7 @@ K13 = space cycle, K14 = stats bar.`,
 	rootCmd.Flags().StringP("addr", "a", "127.0.0.1", "UlanziDeck WebSocket address")
 	rootCmd.Flags().IntP("port", "p", 3906, "UlanziDeck WebSocket port")
 	rootCmd.Flags().BoolP("debug", "d", false, "enable debug logging")
-	rootCmd.Flags().BoolP("k11-toggle", "k", false, "enable K11 ALL↔ACTIVE toggle")
+	rootCmd.Flags().BoolP("k11-toggle", "k", true, "enable K11 ALL↔ACTIVE toggle")
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal().Err(err).Msg("deck startup failed")
@@ -180,6 +180,9 @@ func runMain(cmd *cobra.Command, args []string) error {
 	ctrl = controller.NewController(fm, bm)
 	ir = render.New()
 	sysColl = sysstats.New()
+	// Warmup: call Collect once to establish baseline so the first
+	// ticker-driven collection produces real CPU delta, not 0%%.
+	sysColl.Collect()
 	kht = deckclient.NewKeyHashTracker()
 
 	// ── Connect to UlanziDeck ────────────────────────────

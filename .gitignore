@@ -7,5 +7,5 @@ build/
 *.out
 go/build/
 go/herdrdeck
-herdr-collector
-herdr-deck
+/herdr-collector
+/herdr-deck
