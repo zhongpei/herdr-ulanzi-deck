@@ -342,6 +342,78 @@ func TestBuilder_K12AndK13_Independent(t *testing.T) {
 	}
 }
 
+func TestBuilder_K13_CurrentLabel(t *testing.T) {
+	fm := buildTestFleet()
+	b := NewBuilder(fm)
+
+	// In ALL mode, no space selected yet — CurrentLabel is "-"
+	keys := b.Build()
+	spc := keys[12].NavSpc
+	if spc == nil {
+		t.Fatal("K13 missing")
+	}
+	if spc.CurrentLabel != "-" {
+		t.Errorf("ALL mode CurrentLabel: got %q, want - (no space selected)", spc.CurrentLabel)
+	}
+	if spc.NextLabel != "main-proj" {
+		t.Errorf("ALL mode NextLabel: got %q, want main-proj", spc.NextLabel)
+	}
+	if spc.Active {
+		t.Error("K13 should be inactive in ALL mode")
+	}
+
+	// After NextSpace(), K13 enters space mode — current = main-proj, next = web-app
+	b.NextSpace()
+	keys = b.Build()
+	spc = keys[12].NavSpc
+	if spc.CurrentLabel != "main-proj" {
+		t.Errorf("space mode CurrentLabel: got %q, want main-proj", spc.CurrentLabel)
+	}
+	if spc.NextLabel != "web-app" {
+		t.Errorf("space mode NextLabel: got %q, want web-app", spc.NextLabel)
+	}
+	if !spc.Active {
+		t.Error("K13 should be active in space mode")
+	}
+
+	// Press NextSpace again → advance to web-app, next = backend
+	b.NextSpace()
+	keys = b.Build()
+	spc = keys[12].NavSpc
+	if spc.CurrentLabel != "web-app" {
+		t.Errorf("second NextSpace CurrentLabel: got %q, want web-app", spc.CurrentLabel)
+	}
+	if spc.NextLabel != "backend" {
+		t.Errorf("second NextSpace NextLabel: got %q, want backend", spc.NextLabel)
+	}
+}
+
+func TestBuilder_CPUMEMPipeline(t *testing.T) {
+	fm := buildTestFleet()
+	b := NewBuilder(fm)
+
+	// Before setting stats: defaults to 0
+	keys := b.Build()
+	if keys[13].Stats.CPUPercent != 0.0 {
+		t.Errorf("before SetSysStats: CPU should be 0, got %.1f", keys[13].Stats.CPUPercent)
+	}
+
+	// Set real CPU/MEM values
+	fm.SetSysStats(48.3, 62.7)
+	keys = b.Build()
+	if keys[13].Stats.CPUPercent != 48.3 {
+		t.Errorf("after SetSysStats: CPU should be 48.3, got %.1f", keys[13].Stats.CPUPercent)
+	}
+	if keys[13].Stats.MemoryPercent != 62.7 {
+		t.Errorf("after SetSysStats: MEM should be 62.7, got %.1f", keys[13].Stats.MemoryPercent)
+	}
+
+	// K11 NavAll should also carry CPU/MEM via GetSysStats
+	if keys[10].NavAll.CPUPercent != 48.3 {
+		t.Errorf("K11 CPU should be 48.3, got %.1f", keys[10].NavAll.CPUPercent)
+	}
+}
+
 func TestBuilder_itoa(t *testing.T) {
 	tests := []struct {
 		n    int

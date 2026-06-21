@@ -1,64 +1,53 @@
 // Package sysstats collects system CPU and memory statistics.
-// Uses gopsutil internally; works on macOS and Linux.
+// CPU is collected by a background goroutine using cpu.Percent which
+// samples over a real time window (requires CGO for cross-platform support).
 package sysstats
 
 import (
+	"sync/atomic"
+	"time"
+
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
 // Stats holds CPU and memory usage percentages.
 type Stats struct {
-	CPUPercent    float64 // 0-100, instantaneous since last Collect call
+	CPUPercent    float64 // 0-100, background-updated every 3s
 	MemoryPercent float64 // 0-100, instantaneous
 }
 
-// Collector reads system stats and computes CPU delta on each call.
-// Instant/non-blocking — reads /proc or sysctl directly, no sleep.
+// Collector reads system stats. CPU runs in background goroutine.
 type Collector struct {
-	prev *cpu.TimesStat
+	cpu atomic.Uint32 // centipercent ×100 for atomic storage
 }
 
-// New creates a Collector. The first Collect() returns zero CPU (baseline).
+// New starts background CPU collector.
 func New() *Collector {
-	return &Collector{}
+	c := &Collector{}
+	go c.run()
+	return c
 }
 
-// Collect reads current system stats: CPU% (delta from previous call)
-// and memory%. First call after New() returns 0 CPU (baseline).
-func (c *Collector) Collect() (*Stats, error) {
-	memStats, err := mem.VirtualMemory()
-	if err != nil {
-		return nil, err
-	}
-
-	times, err := cpu.Times(false)
-	if err != nil {
-		return nil, err
-	}
-
-	cpuPct := 0.0
-	if c.prev != nil {
-		prev := *c.prev
-		curr := times[0]
-
-		totalDelta := (curr.User + curr.System + curr.Idle + curr.Iowait +
-			curr.Irq + curr.Softirq + curr.Steal + curr.Guest + curr.GuestNice) -
-			(prev.User + prev.System + prev.Idle + prev.Iowait +
-				prev.Irq + prev.Softirq + prev.Steal + prev.Guest + prev.GuestNice)
-		idleDelta := curr.Idle - prev.Idle
-
-		if totalDelta > 0 {
-			cpuPct = (1.0 - idleDelta/totalDelta) * 100.0
+func (c *Collector) run() {
+	for {
+		// cpu.Percent with a real interval uses a different code path
+		// than cpu.Times and works when CGO is enabled.
+		pcts, _ := cpu.Percent(3*time.Second, false)
+		if len(pcts) > 0 {
+			c.cpu.Store(uint32(pcts[0] * 100))
 		}
 	}
+}
 
-	// Save current times for next delta
-	cp := times[0]
-	c.prev = &cp
-
+// Collect returns latest stats. First ~3s CPU=0 (renders as "--").
+func (c *Collector) Collect() (*Stats, error) {
+	m, err := mem.VirtualMemory()
+	if err != nil {
+		return nil, err
+	}
 	return &Stats{
-		CPUPercent:    cpuPct,
-		MemoryPercent: memStats.UsedPercent,
+		CPUPercent:    float64(c.cpu.Load()) / 100.0,
+		MemoryPercent: m.UsedPercent,
 	}, nil
 }

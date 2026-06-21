@@ -11,7 +11,7 @@ import (
 type FilterMode int
 
 const (
-	ModeAll     FilterMode = iota
+	ModeAll FilterMode = iota
 	ModeMachine
 	ModeSpace
 )
@@ -174,13 +174,15 @@ func (b *Builder) Build() []KeyCommand {
 	})
 
 	// K13
+	currentSpace := spaceCurrent(spaces, spaceIdx)
 	keys = append(keys, KeyCommand{
 		NavSpc: &NavSpaceData{
-			KeyID:     "nav_space",
-			Type:      "navSpace",
-			Count:     len(spaces),
-			NextLabel: spaceNextLabel(nextSpace),
-			Active:    b.Mode == ModeSpace,
+			KeyID:        "nav_space",
+			Type:         "navSpace",
+			Count:        len(spaces),
+			CurrentLabel: spaceCurrentLabel(currentSpace),
+			NextLabel:    spaceNextLabel(nextSpace),
+			Active:       b.Mode == ModeSpace,
 		},
 	})
 
@@ -246,6 +248,20 @@ func spaceNext(spaces []fleet.SpaceRef, idx int) *fleet.SpaceRef {
 		return &spaces[0]
 	}
 	return &spaces[(idx+1)%len(spaces)]
+}
+
+func spaceCurrent(spaces []fleet.SpaceRef, idx int) *fleet.SpaceRef {
+	if idx >= 0 && idx < len(spaces) {
+		return &spaces[idx]
+	}
+	return nil
+}
+
+func spaceCurrentLabel(s *fleet.SpaceRef) string {
+	if s == nil {
+		return "-"
+	}
+	return s.Label
 }
 
 func spaceNextLabel(s *fleet.SpaceRef) string {

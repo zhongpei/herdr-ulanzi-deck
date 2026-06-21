@@ -1,39 +1,31 @@
 package sysstats
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNewCollector(t *testing.T) {
 	c := New()
 	if c == nil {
 		t.Fatal("New() returned nil")
 	}
+	// Allow background goroutine to start
+	time.Sleep(10 * time.Millisecond)
 }
 
-func TestCollect_ReturnsValues(t *testing.T) {
+func TestCollect_MemoryWorks(t *testing.T) {
 	c := New()
-	// First call: CPU is 0 (no baseline), memory should be > 0
 	s, err := c.Collect()
 	if err != nil {
-		t.Fatalf("first Collect: %v", err)
-	}
-	if s.CPUPercent != 0 {
-		t.Logf("first call CPU = %.1f (expected 0, no baseline)", s.CPUPercent)
+		t.Fatalf("Collect: %v", err)
 	}
 	if s.MemoryPercent <= 0 || s.MemoryPercent > 100 {
-		t.Errorf("memory percent out of range: %.1f", s.MemoryPercent)
+		t.Errorf("memory out of range: %.1f", s.MemoryPercent)
 	}
-	t.Logf("first call: CPU=%.1f MEM=%.1f", s.CPUPercent, s.MemoryPercent)
-
-	// Second call: should have real CPU value (> 0 or at least readable)
-	s2, err := c.Collect()
-	if err != nil {
-		t.Fatalf("second Collect: %v", err)
+	// CPU is 0 until background goroutine completes first sample (~3s)
+	if s.CPUPercent < 0 || s.CPUPercent > 100 {
+		t.Errorf("CPU out of range: %.1f", s.CPUPercent)
 	}
-	t.Logf("second call: CPU=%.1f MEM=%.1f", s2.CPUPercent, s2.MemoryPercent)
-	if s2.CPUPercent < 0 {
-		t.Errorf("CPU percent negative: %.1f", s2.CPUPercent)
-	}
-	if s2.MemoryPercent <= 0 || s2.MemoryPercent > 100 {
-		t.Errorf("memory percent out of range: %.1f", s2.MemoryPercent)
-	}
+	t.Logf("CPU=%.1f MEM=%.1f", s.CPUPercent, s.MemoryPercent)
 }

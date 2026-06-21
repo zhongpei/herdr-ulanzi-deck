@@ -8,7 +8,7 @@ all: fmt vet test build
 
 build:
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=0 go build -o $(BUILD_DIR)/$(BINARY) ./cmd/herdr-deck/
+	CGO_ENABLED=1 go build -o $(BUILD_DIR)/$(BINARY) ./cmd/herdr-deck/
 
 test:
 	go test -v -race -count=1 ./internal/...

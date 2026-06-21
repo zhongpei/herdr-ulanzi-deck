@@ -81,14 +81,14 @@ func keyCommandID(kc viewmodel.KeyCommand) string {
 
 // ─── Globals ───────────────────────────────────────────────
 var (
-	fm     *fleet.Manager
-	bm     *viewmodel.Builder
-	ir     *render.Renderer
-	dc     *deckclient.Client
-	ctrl   *controller.Controller
-	sysColl *sysstats.Collector
-	sub    *subscriber.Subscriber
-	kht    *deckclient.KeyHashTracker
+	fm       *fleet.Manager
+	bm       *viewmodel.Builder
+	ir       *render.Renderer
+	dc       *deckclient.Client
+	ctrl     *controller.Controller
+	sysColl  *sysstats.Collector
+	sub      *subscriber.Subscriber
+	kht      *deckclient.KeyHashTracker
 	lastHash string
 )
 
@@ -245,10 +245,17 @@ func runMain(cmd *cobra.Command, args []string) error {
 			}
 
 		case <-sysTick.C:
-			if sysStats, err := sysColl.Collect(); err == nil {
-				fm.SetSysStats(sysStats.CPUPercent, sysStats.MemoryPercent)
-				ctrl.MarkDirty()
+			sysStats, err := sysColl.Collect()
+			if err != nil {
+				log.Error().Err(err).Msg("sys stats collect failed")
+				continue
 			}
+			fm.SetSysStats(sysStats.CPUPercent, sysStats.MemoryPercent)
+			ctrl.MarkDirty()
+			log.Debug().
+				Float64("cpu", sysStats.CPUPercent).
+				Float64("mem", sysStats.MemoryPercent).
+				Msg("sys stats updated")
 
 		case <-renderTick.C:
 			if !ctrl.IsDirty() {

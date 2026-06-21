@@ -184,15 +184,18 @@ func TestRenderNavMachine_Inactive(t *testing.T) {
 func TestRenderNavSpace_Active(t *testing.T) {
 	r := New()
 	svg := decodeSVG(r.RenderNavSpace(viewmodel.NavSpaceData{
-		NextLabel: "main-proj",
-		Count:     3,
-		Active:    true,
+		CurrentLabel: "main-proj",
+		NextLabel:    "web-app",
+		Count:        3,
+		Active:       true,
 	}))
-	if !strings.Contains(svg, "MAIN") && !strings.Contains(svg, "PROJ") {
-		t.Error("should show space label split on dash")
+	// Current space shown as main text (split on dash)
+	if !strings.Contains(svg, "MAIN") || !strings.Contains(svg, "PROJ") {
+		t.Error("should show current space label split on dash")
 	}
-	if !strings.Contains(svg, "WS") {
-		t.Error("should show WS label at bottom")
+	// Next space shown as hint
+	if !strings.Contains(svg, "web-app") {
+		t.Error("should show next space label as hint")
 	}
 }
 
@@ -209,8 +212,8 @@ func TestRenderNavSpace_Inactive(t *testing.T) {
 func TestRenderNavSpace_SingleLine(t *testing.T) {
 	r := New()
 	svg := decodeSVG(r.RenderNavSpace(viewmodel.NavSpaceData{
-		NextLabel: "SIMPLE",
-		Active:    true,
+		CurrentLabel: "SIMPLE",
+		Active:       true,
 	}))
 	if !strings.Contains(svg, "SIMPLE") {
 		t.Error("should show simple label in one line")
@@ -307,6 +310,44 @@ func TestRenderEmptyKey(t *testing.T) {
 	svg := decodeSVG(r.RenderEmptyKey())
 	if !strings.Contains(svg, "#2a2a2a") {
 		t.Error("empty key should have dark color")
+	}
+}
+
+func TestRenderStatsKey_CPUValue(t *testing.T) {
+	r := New()
+	svg := decodeSVG(r.RenderStatsKey(viewmodel.StatsData{
+		CPUPercent:    45.7,
+		MemoryPercent: 72.1,
+	}))
+	// 45.7 → "46%" in SVG output
+	if !strings.Contains(svg, "46%") {
+		t.Error("K14 should show CPU 46%")
+	}
+	// 72.1 → "72%"
+	if !strings.Contains(svg, "72%") {
+		t.Error("K14 should show MEM 72%")
+	}
+	// CPU at x=245, MEM at x=340
+	if !strings.Contains(svg, `x="245"`) {
+		t.Error("CPU value should be at x=245")
+	}
+	if !strings.Contains(svg, `x="340"`) {
+		t.Error("MEM value should be at x=340")
+	}
+}
+
+func TestRenderStatsKey_CPUZero(t *testing.T) {
+	r := New()
+	svg := decodeSVG(r.RenderStatsKey(viewmodel.StatsData{
+		CPUPercent:    0.0,
+		MemoryPercent: 0.0,
+	}))
+	// 0.0% should show "--" (not "0%")
+	if !strings.Contains(svg, "--") {
+		t.Error("zero CPU/MEM should show '--'")
+	}
+	if strings.Contains(svg, "0%") {
+		t.Error("zero CPU/MEM should NOT show '0%'")
 	}
 }
 

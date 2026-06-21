@@ -86,9 +86,9 @@ func (r *Renderer) RenderAgentKey(d viewmodel.AgentKeyData) string {
         fill="none" stroke="%[4]s" stroke-width="%[5]s"
         opacity="%[6]d"/>
   <text x="50" y="32" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="24" font-weight="800">%[7]s</text>
+        font-family="sans-serif" font-size="24" font-weight="900">%[7]s</text>
   <text x="150" y="32" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="24" font-weight="800">%[8]s</text>
+        font-family="sans-serif" font-size="24" font-weight="900">%[8]s</text>
   <text x="100" y="90" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="36" font-weight="700">%[9]s</text>
   %[10]s
@@ -120,9 +120,9 @@ func (r *Renderer) RenderAgentKey(d viewmodel.AgentKeyData) string {
         fill="none" stroke="%[4]s" stroke-width="%[5]s"
         opacity="%[6]d"/>
   <text x="50" y="32" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="24" font-weight="800">%[7]s</text>
+        font-family="sans-serif" font-size="24" font-weight="900">%[7]s</text>
   <text x="150" y="32" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="24" font-weight="800">%[8]s</text>
+        font-family="sans-serif" font-size="24" font-weight="900">%[8]s</text>
   <text x="100" y="90" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="36" font-weight="700">%[9]s</text>
   %[10]s
@@ -169,7 +169,7 @@ func (r *Renderer) RenderNavAll(d viewmodel.NavAllData) string {
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="%s"/>
   <text x="100" y="115" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="36" font-weight="800">%s</text>
+        font-family="sans-serif" font-size="36" font-weight="900">%s</text>
   <rect x="155" y="178" width="40" height="18" rx="4" fill="#222" opacity="0.7"/>
   <text x="175" y="192" text-anchor="middle" fill="#00D084"
         font-family="sans-serif" font-size="16" font-weight="700">Go</text>
@@ -189,7 +189,7 @@ func (r *Renderer) RenderNavMachine(d viewmodel.NavMachineData) string {
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="%s" opacity="0.85"/>
   <text x="100" y="105" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="40" font-weight="800">%s</text>
+        font-family="sans-serif" font-size="40" font-weight="900">%s</text>
   <text x="100" y="175" text-anchor="middle" fill="%s"
         font-family="sans-serif" font-size="16" font-weight="600">→ %s</text>
 </svg>`,
@@ -204,35 +204,63 @@ func (r *Renderer) RenderNavMachine(d viewmodel.NavMachineData) string {
 // ─── Space cycle button (K13) ─────────────────────────────
 // Bold uppercase space name, auto line-break on separators.
 func (r *Renderer) RenderNavSpace(d viewmodel.NavSpaceData) string {
-	raw := "..."
-	if d.Active && d.NextLabel != "" {
-		raw = escapeXML(d.NextLabel)
+	// Current space label (main text) — defaults to "..." when empty or "-".
+	current := d.CurrentLabel
+	if current == "" || current == "-" {
+		current = "..."
 	}
-	upper := strings.ToUpper(raw)
+	if !d.Active {
+		current = "..."
+	}
+	upper := strings.ToUpper(escapeXML(current))
 	line1, line2 := smartSplit(upper)
 
-	textY := "112"
+	// Layout: two-line (y=74/110, 30/26px) or single-line (y=86, 30px).
+	// Next hint at y=168/158, 24px, #BBB.
+	textY := "86"
+	mainSize := "30"
 	line2El := ""
 	if line2 != "" {
-		textY = "95"
+		textY = "74"
+		mainSize = "30"
 		line2El = fmt.Sprintf(
-			`<text x="100" y="130" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="26" font-weight="800">%s</text>`,
+			`<text x="100" y="110" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="26" font-weight="900">%s</text>`,
 			line2,
 		)
+	}
+
+	// Next space hint at bottom (like K12 "→ DEV")
+	hintY := "158"
+	if line2 != "" {
+		hintY = "168"
+	}
+	hint := ""
+	if d.Active && d.NextLabel != "" {
+		hint = fmt.Sprintf(
+			`<text x="100" y="%s" text-anchor="middle" fill="#BBB"
+        font-family="sans-serif" font-size="24" font-weight="700">→ %s</text>`,
+			hintY,
+			escapeXML(d.NextLabel),
+		)
+	} else {
+		hint = fmt.Sprintf(`<text x="100" y="%s" text-anchor="middle" fill="#BBB"
+        font-family="sans-serif" font-size="24" font-weight="700">WS</text>`,
+			hintY)
 	}
 
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="#333"/>
   <text x="100" y="%s" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="28" font-weight="800">%s</text>
+        font-family="sans-serif" font-size="%s" font-weight="900">%s</text>
   %s
-  <text x="100" y="178" text-anchor="middle" fill="#888"
-        font-family="sans-serif" font-size="14" font-weight="600">WS</text>
+  %s
 </svg>`,
 		textY,
+		mainSize,
 		line1,
 		line2El,
+		hint,
 	)
 	return toDataURI(svg)
 }
@@ -250,11 +278,11 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		Count int
 		Color string
 	}{
-		{"D", stats.Done, "#27AE60"},
+		{"?", stats.Unknown, "#95A5A6"},
 		{"I", stats.Idle, "#7F8C8D"},
 		{"W", stats.Working, "#F39C12"},
+		{"D", stats.Done, "#27AE60"},
 		{"B", stats.Blocked, "#E74C3C"},
-		{"?", stats.Unknown, "#95A5A6"},
 	}
 
 	var inner strings.Builder
@@ -266,8 +294,8 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		if item.Count == 0 && item.Label != "D" {
 			continue
 		}
-		labelLine := fmt.Sprintf(`<text x="%d" y="185" text-anchor="end" fill="%s" font-family="sans-serif" font-size="28" font-weight="800">%s</text>`, x, item.Color, item.Label)
-		numLine := fmt.Sprintf(`<text x="%d" y="185" text-anchor="start" fill="white" font-family="sans-serif" font-size="28" font-weight="800">%d</text>`, x+numGap, item.Count)
+		labelLine := fmt.Sprintf(`<text x="%d" y="185" text-anchor="end" fill="%s" font-family="sans-serif" font-size="28" font-weight="900">%s</text>`, x, item.Color, item.Label)
+		numLine := fmt.Sprintf(`<text x="%d" y="185" text-anchor="start" fill="white" font-family="sans-serif" font-size="28" font-weight="900">%d</text>`, x+numGap, item.Count)
 		inner.WriteString("\n  " + labelLine + "\n  " + numLine)
 		x -= step
 	}
@@ -290,13 +318,13 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 	// so the clock on K14 doesn't clip the text. Font: labels 20pt bold white,
 	// values 24pt bold colored (approaching the 28pt stats-bar font below).
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="170" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="20" font-weight="800">C</text>`))
+	inner.WriteString(fmt.Sprintf(`<text x="220" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="20" font-weight="900">C</text>`))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="195" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="24" font-weight="800">%s</text>`, cpuCol, cpuPct))
+	inner.WriteString(fmt.Sprintf(`<text x="245" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="24" font-weight="900">%s</text>`, cpuCol, cpuPct))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="265" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="20" font-weight="800">M</text>`))
+	inner.WriteString(fmt.Sprintf(`<text x="315" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="20" font-weight="900">M</text>`))
 	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="290" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="24" font-weight="800">%s</text>`, memCol, memPct))
+	inner.WriteString(fmt.Sprintf(`<text x="340" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="24" font-weight="900">%s</text>`, memCol, memPct))
 
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">%s
 </svg>`, inner.String())

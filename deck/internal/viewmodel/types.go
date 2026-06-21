@@ -24,12 +24,12 @@ type AgentKeyData struct {
 
 // NavAllData describes the K11 ALL/ACT button with system stats overlay.
 type NavAllData struct {
-	KeyID        string  `json:"keyId"`
-	Type         string  `json:"type"`
-	Label        string  `json:"label"`
-	Active       bool    `json:"active"`
-	Filtered     bool    `json:"filtered"`
-	CPUPercent   float64 `json:"cpuPercent"`
+	KeyID         string  `json:"keyId"`
+	Type          string  `json:"type"`
+	Label         string  `json:"label"`
+	Active        bool    `json:"active"`
+	Filtered      bool    `json:"filtered"`
+	CPUPercent    float64 `json:"cpuPercent"`
 	MemoryPercent float64 `json:"memPercent"`
 }
 
@@ -45,20 +45,21 @@ type NavMachineData struct {
 
 // NavSpaceData describes the K13 space-cycle button.
 type NavSpaceData struct {
-	KeyID     string `json:"keyId"`
-	Type      string `json:"type"`
-	Count     int    `json:"count"`
-	NextLabel string `json:"nextLabel"`
-	Active    bool   `json:"active"`
+	KeyID        string `json:"keyId"`
+	Type         string `json:"type"`
+	Count        int    `json:"count"`
+	CurrentLabel string `json:"currentLabel"`
+	NextLabel    string `json:"nextLabel"`
+	Active       bool   `json:"active"`
 }
 
 // StatsData describes the K14 stats bar with optional system CPU/memory overlay.
 type StatsData struct {
-	KeyID         string             `json:"keyId"`
-	Type          string             `json:"type"`
+	KeyID         string              `json:"keyId"`
+	Type          string              `json:"type"`
 	Stats         protocol.AgentStats `json:"stats"`
-	CPUPercent    float64            `json:"cpuPercent"`
-	MemoryPercent float64            `json:"memPercent"`
+	CPUPercent    float64             `json:"cpuPercent"`
+	MemoryPercent float64             `json:"memPercent"`
 }
 
 // EmptyKeyData describes an unused key slot.
