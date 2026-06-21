@@ -1,6 +1,10 @@
 # Herdr Agent Status on UlanziDeck — Architecture
 
-> Version: v2.0 (synchronized with code)
+> ⚠️ **本文描述 v1 单体架构，已被三进程重构取代。**
+> 当前架构见 [AGENTS.md](../../AGENTS.md)。
+> 以下内容保留为历史参考。
+> 重构记录见附录 A。
+>
 > Device: Ulanzi D200X
 > Platform: macOS, Linux
 
@@ -249,6 +253,81 @@ SVG example:
 ```
 
 ---
+
+## Appendix A: Three-Process Refactor Record
+
+> 2026 年重构记录。从 v1 单体 go/pkg/ 结构迁移到三进程（protocol/collector/deck）架构，后续加入 displaymodel/ 共享模块。
+
+### A.1 Architecture Transition
+
+```
+单进程 (v1)                   三进程 (当前)
+─────────────                ────────────────
+cmd/herdrdeck             ┌─ collector/cmd/herdr-collector
+  ├─ herdr/*               │     采集 + embedded NATS
+  ├─ state/*               │
+  ├─ mapper/*              ├─ deck/cmd/herdr-deck
+  ├─ render/*              │     硬件显示 (Ulanzi D200X)
+  ├─ deck/*                │
+  ├─ appstate/*            ├─ displaymodel/
+  ├─ profile/*             │     共享展示语义
+  └─ sysstats/*            │
+                           └─ protocol/
+                               公共协议
+```
+
+Data flow after refactor:
+
+```
+collector (2s fetch)
+  → embedded NATS
+    → herdr.v1.snapshot.full
+    → herdr.v1.collector.heartbeat
+      → deck subscriber
+        → fleet.Manager (duration/health/sysstats)
+        → displaymodel.Builder (ViewState → Model)
+        → viewmodel.Adapt (Model → 14 KeyCommand)
+        → render → deckclient → D200X
+```
+
+### A.2 File Migration Matrix
+
+| 旧文件 (go/pkg/) | 新文件 |
+|-----------------|--------|
+| `types/types.go` AgentStatus/AgentStats | `protocol/snapshot.go` |
+| `types/types.go` render 类型 | `deck/internal/viewmodel/types.go` |
+| `types/types.go` UnifiedWorkspace | 删除 (collector 内部新 struct) |
+| `herdr/config.go` | `collector/internal/config/config.go` |
+| `herdr/client.go` | `collector/internal/herdrclient/client.go` |
+| `herdr/bridge.go` | `collector/internal/bridge/bridge.go` |
+| `herdr/tunnel.go` | `collector/internal/tunnel/tunnel.go` |
+| `state/state.go` | `deck/internal/fleet/manager.go` |
+| `mapper/mapper.go` | `deck/internal/viewmodel/builder.go` → `adapter.go` |
+| `render/*` | `deck/internal/render/*` |
+| `deck/*` | `deck/internal/deckclient/*` |
+| `appstate/store.go` | `deck/internal/controller/controller.go` |
+| `profile/manager.go` | `deck/internal/profile/manager.go` |
+| `sysstats/sysstats.go` | `deck/internal/sysstats/sysstats.go` |
+
+### A.3 Offline Handling Design
+
+deck 维护 `ConnectionHealth`:
+
+- **HealthConnected**: 有周期性 snapshot + heartbeat
+- **HealthOffline**: 5s 无 heartbeat → agents 灰显，stats 置零
+
+### A.4 Phase Completion Summary
+
+| Phase | Description | Status |
+|-------|------------|--------|
+| 0 | 前置 (worktree + 清理) | ✅ |
+| 1 | protocol/ 模块 | ✅ CP1 |
+| 2 | collector/ 二进制 | ✅ CP2 |
+| 3 | deck/ 二进制 | ✅ CP3 |
+| 4 | 整合 (go.work + scripts + docs) | ✅ CP4 |
+| 5 | displaymodel/ 共享模块 + adapter | ✅ |
+
+Checkpoints: CP1=protocol 4 tests, CP2=collector 14 tests, CP3=deck 53 tests, CP4=workspace build + vet clean
 
 ## 4. Filter Logic
 

@@ -75,66 +75,6 @@ func TestManager_ApplySnapshot(t *testing.T) {
 	}
 }
 
-func TestManager_GetFilteredAgents_NoFilter(t *testing.T) {
-	m := NewManager()
-	m.ApplySnapshot(buildSnapshot())
-
-	// No filter → top 10 sorted by priority
-	agents := m.GetFilteredAgents("", "")
-	if len(agents) > 10 {
-		t.Fatalf("max 10 agents, got %d", len(agents))
-	}
-
-	// Sort order: blocked > done > working > idle > unknown
-	prev := -1
-	for _, a := range agents {
-		p := protocol.StatusPriority[a.Status]
-		if p < prev {
-			t.Errorf("sort violation: %s (prio %d) after prio %d", a.PaneID, p, prev)
-		}
-		prev = p
-	}
-}
-
-func TestManager_GetFilteredAgents_MachineFilter(t *testing.T) {
-	m := NewManager()
-	m.ApplySnapshot(buildSnapshot())
-
-	agents := m.GetFilteredAgents("local", "")
-	if len(agents) != 5 {
-		t.Fatalf("local: expected 5 agents, got %d", len(agents))
-	}
-	for _, a := range agents {
-		if a.ConnName != "local" {
-			t.Errorf("local filter: got agent from %s", a.ConnName)
-		}
-	}
-}
-
-func TestManager_GetFilteredAgents_SpaceFilter(t *testing.T) {
-	m := NewManager()
-	m.ApplySnapshot(buildSnapshot())
-
-	// Space filter: backend has 5 agents on dev-server
-	agents := m.GetFilteredAgents("", "backend")
-	if len(agents) != 5 {
-		t.Fatalf("backend: expected 5 agents, got %d", len(agents))
-	}
-	for _, a := range agents {
-		if a.WsLabel != "backend" {
-			t.Errorf("backend filter: got agent from %s", a.WsLabel)
-		}
-	}
-}
-
-func TestManager_GetFilteredAgents_Empty(t *testing.T) {
-	m := NewManager()
-	agents := m.GetFilteredAgents("", "")
-	if len(agents) != 0 {
-		t.Errorf("empty manager: expected 0 agents, got %d", len(agents))
-	}
-}
-
 func TestManager_GetMachines(t *testing.T) {
 	m := NewManager()
 	m.ApplySnapshot(buildSnapshot())
@@ -179,69 +119,6 @@ func TestManager_ComputeStats(t *testing.T) {
 	want := protocol.AgentStats{Done: 2, Idle: 2, Working: 4, Blocked: 3, Unknown: 1}
 	if stats != want {
 		t.Errorf("stats: got %+v, want %+v", stats, want)
-	}
-}
-
-func TestManager_K11Toggle(t *testing.T) {
-	m := NewManager()
-	m.ApplySnapshot(buildSnapshot())
-
-	// Default: not filtered
-	if m.IsK11Filtered() {
-		t.Error("should not be filtered by default")
-	}
-
-	m.SetK11Toggle(true)
-	m.ToggleK11Filter()
-
-	if !m.IsK11Filtered() {
-		t.Error("should be filtered after toggle")
-	}
-
-	agents := m.GetFilteredAgents("", "")
-	// 12 total: 2 done + 2 idle + 4 working + 3 blocked + 1 unknown
-	// K11 filters idle(2) + unknown(1) → 9 remaining, truncated to 10 = 9
-	if len(agents) != 9 {
-		t.Fatalf("K11 filtered: expected 9 agents, got %d", len(agents))
-	}
-	for _, a := range agents {
-		if a.Status == protocol.StatusIdle || a.Status == protocol.StatusUnknown {
-			t.Errorf("K11 should filter idle/unknown, got %s with status %s", a.PaneID, a.Status)
-		}
-	}
-
-	// Toggle off
-	m.ToggleK11Filter()
-	if m.IsK11Filtered() {
-		t.Error("should not be filtered after second toggle")
-	}
-}
-
-func TestManager_K11Toggle_WithMachineFilter(t *testing.T) {
-	m := NewManager()
-	m.ApplySnapshot(buildSnapshot())
-	m.SetK11Toggle(true)
-	m.ToggleK11Filter()
-
-	// dev-server: 5 agents (1 idle, 1 done, 1 working, 1 blocked, 1 unknown)
-	// K11: filters idle + unknown → 3 remaining
-	agents := m.GetFilteredAgents("dev-server", "")
-	if len(agents) != 3 {
-		t.Fatalf("dev-server + K11: expected 3 agents, got %d", len(agents))
-	}
-}
-
-func TestManager_K11Toggle_WithSpaceFilter(t *testing.T) {
-	m := NewManager()
-	m.ApplySnapshot(buildSnapshot())
-	m.SetK11Toggle(true)
-	m.ToggleK11Filter()
-
-	// main-proj: 3 agents (1 working, 1 blocked, 1 idle)
-	// K11: filters idle → 2 remaining
-	agents := m.GetFilteredAgents("", "main-proj")
-	if len(agents) != 2 {
-		t.Fatalf("main-proj + K11: expected 2 agents, got %d", len(agents))
 	}
 }
 
@@ -343,30 +220,6 @@ func TestManager_SysStats(t *testing.T) {
 	cpu, mem = m.GetSysStats()
 	if cpu != 45.5 || mem != 72.3 {
 		t.Errorf("after set: got cpu=%.1f mem=%.1f", cpu, mem)
-	}
-}
-
-func TestManager_TruncateTo10(t *testing.T) {
-	m := NewManager()
-
-	// Build snapshot with 15 agents
-	agents := make([]protocol.AgentState, 15)
-	for i := 0; i < 15; i++ {
-		agents[i] = protocol.AgentState{
-			ID: "m|px" + string(rune('a'+i)), Machine: "m", Agent: "pi",
-			Status: protocol.StatusIdle, PaneID: "px" + string(rune('a'+i)),
-			Workspace: "ws", WorkspaceID: "ws",
-		}
-	}
-	snap := &protocol.FleetSnapshot{
-		Version: 1, Machines: []protocol.MachineInfo{{Name: "m", Abbr: "M", Color: "#000"}},
-		Agents: agents,
-	}
-	m.ApplySnapshot(snap)
-
-	result := m.GetFilteredAgents("", "")
-	if len(result) != 10 {
-		t.Errorf("expected 10 (truncated), got %d", len(result))
 	}
 }
 

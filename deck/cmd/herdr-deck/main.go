@@ -19,6 +19,7 @@ import (
 	"github.com/herdr-deck/herdrdeck/deck/internal/subscriber"
 	"github.com/herdr-deck/herdrdeck/deck/internal/sysstats"
 	"github.com/herdr-deck/herdrdeck/deck/internal/viewmodel"
+	"github.com/herdr-deck/herdrdeck/displaymodel"
 	"github.com/herdr-deck/herdrdeck/protocol"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -82,7 +83,7 @@ func keyCommandID(kc viewmodel.KeyCommand) string {
 // ─── Globals ───────────────────────────────────────────────
 var (
 	fm       *fleet.Manager
-	bm       *viewmodel.Builder
+	db       *displaymodel.Builder
 	ir       *render.Renderer
 	dc       *deckclient.Client
 	ctrl     *controller.Controller
@@ -100,30 +101,26 @@ func onAdd(key, actionID string) {
 func onKeyDown(msg deckclient.Message) {
 	switch msg.Key {
 	case "0_2", "0_3":
-		bm.SetAll()
-		if bm.K11Toggle {
-			fm.ToggleK11Filter()
-			bm.K11Filtered = fm.IsK11Filtered()
-		}
-		ctrl.MarkDirty()
-		log.Debug().Str("key", msg.Key).Bool("filtered", fm.IsK11Filtered()).Msg("nav: show all")
+		ctrl.OnK11()
+		log.Debug().Str("key", msg.Key).Msg("nav: toggle all/act")
+
 	case "1_2", "1_3":
-		bm.NextMachine()
-		ctrl.MarkDirty()
+		ctrl.OnK12()
 		log.Debug().Str("key", msg.Key).Msg("nav: next machine")
+
 	case "2_2":
-		bm.NextSpace()
-		ctrl.MarkDirty()
+		ctrl.OnK13()
 		log.Debug().Str("key", msg.Key).Msg("nav: next space")
+
 	default:
 		if idx, ok := keyMap[msg.Key]; ok && idx < 10 {
-			kd := bm.Build()
-			if idx < len(kd) && kd[idx].Agent != nil {
-				a := kd[idx].Agent
+			m := ctrl.LastModel()
+			if m != nil && idx < len(m.Agents) {
+				a := m.Agents[idx]
 				log.Info().
 					Str("conn", a.ConnName).
 					Str("pane", a.PaneID).
-					Str("agent", a.AgentType).
+					Str("agent", a.Agent).
 					Msg("focus agent")
 			}
 		}
@@ -173,11 +170,10 @@ func runMain(cmd *cobra.Command, args []string) error {
 	defer sub.Close()
 	log.Info().Str("nats", natsAddr).Msg("NATS subscriber connected")
 
-	// ── Init fleet + viewmodel + controller ─────────────
+	// ── Init fleet + displaymodel + controller ─────────
 	fm = fleet.NewManager()
-	bm = viewmodel.NewBuilder(fm)
-	bm.K11Toggle = k11Toggle
-	ctrl = controller.NewController(fm, bm)
+	db = displaymodel.NewBuilder()
+	ctrl = controller.NewController(fm, db, k11Toggle)
 	ir = render.New()
 	sysColl = sysstats.New()
 	// Warmup: call Collect once to establish baseline so the first
@@ -230,6 +226,7 @@ func runMain(cmd *cobra.Command, args []string) error {
 			return nil
 		case snap := <-sub.SnapshotCh():
 			fm.ApplySnapshot(snap)
+			ctrl.ApplySnapshot(snap)
 			ctrl.MarkDirty()
 			log.Debug().
 				Uint64("seq", snap.Seq).
@@ -268,13 +265,13 @@ func runMain(cmd *cobra.Command, args []string) error {
 			if !ctrl.IsDirty() {
 				continue
 			}
-			snap := ctrl.Capture()
+			capState := ctrl.Capture()
 			ctrl.MarkClean()
-			if !snap.ChangedSince(lastHash) {
+			if !capState.ChangedSince(lastHash) {
 				continue
 			}
-			lastHash = snap.Hash()
-			renderAll()
+			lastHash = capState.Hash()
+			renderAll(capState.Model)
 		}
 	}
 }
@@ -302,8 +299,8 @@ func messagePump() {
 	}
 }
 
-func renderAll() {
-	kd := bm.Build()
+func renderAll(m displaymodel.Model) {
+	kd := viewmodel.Adapt(m)
 	offline := fm.Health() == fleet.HealthOffline
 
 	for i, k := range kd {
@@ -311,7 +308,6 @@ func renderAll() {
 		switch {
 		case k.Agent != nil:
 			if offline {
-				// Dim agent keys when collector is offline
 				a := *k.Agent
 				a.Status = "offline"
 				svg = ir.RenderAgentKey(a)
@@ -326,7 +322,6 @@ func renderAll() {
 			svg = ir.RenderNavSpace(*k.NavSpc)
 		case k.Stats != nil:
 			if offline {
-				// Replace stats with offline indicator on K14
 				s := *k.Stats
 				s.Stats = protocol.AgentStats{} // zero stats when offline
 				svg = ir.RenderStatsKey(s)

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/herdr-deck/herdrdeck/deck/internal/fleet"
-	"github.com/herdr-deck/herdrdeck/deck/internal/viewmodel"
+	"github.com/herdr-deck/herdrdeck/displaymodel"
 	"github.com/herdr-deck/herdrdeck/protocol"
 )
 
@@ -29,8 +29,8 @@ func buildControllerFleet() *fleet.Manager {
 
 func TestController_DirtyFlag(t *testing.T) {
 	fm := buildControllerFleet()
-	bm := viewmodel.NewBuilder(fm)
-	c := NewController(fm, bm)
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
 
 	if c.IsDirty() {
 		t.Error("should start clean")
@@ -49,82 +49,134 @@ func TestController_DirtyFlag(t *testing.T) {
 
 func TestController_Capture(t *testing.T) {
 	fm := buildControllerFleet()
-	bm := viewmodel.NewBuilder(fm)
-	c := NewController(fm, bm)
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
 
-	snap := c.Capture()
-	if snap.Mode != viewmodel.ModeAll {
-		t.Errorf("mode: got %v, want ModeAll", snap.Mode)
+	// Apply snapshot so Capture has data
+	snap := &protocol.FleetSnapshot{
+		Version:   1,
+		Seq:       1,
+		UpdatedAt: "2026-06-21T10:00:00Z",
+		Machines:  []protocol.MachineInfo{{Name: "local", Abbr: "LCL", Color: "#4ADE80"}},
+		Agents: []protocol.AgentState{
+			{ID: "local|p1", Machine: "local", Agent: "pi", Name: "review", Status: protocol.StatusWorking, Focused: true, Workspace: "main-proj", WorkspaceID: "ws-1", PaneID: "p1"},
+			{ID: "local|p2", Machine: "local", Agent: "cursor", Status: protocol.StatusBlocked, Workspace: "main-proj", WorkspaceID: "ws-1", PaneID: "p2"},
+		},
+		Stats: protocol.AgentStats{Working: 1, Blocked: 1},
 	}
-	if snap.Stats.Working != 1 || snap.Stats.Blocked != 1 {
-		t.Errorf("stats: got %+v", snap.Stats)
+	c.ApplySnapshot(snap)
+
+	capState := c.Capture()
+	if capState.Model.Mode != displaymodel.ModeAll {
+		t.Errorf("mode: got %v, want ModeAll", capState.Model.Mode)
+	}
+	if capState.Model.Stats.AgentStats.Working != 1 || capState.Model.Stats.AgentStats.Blocked != 1 {
+		t.Errorf("stats: got %+v", capState.Model.Stats.AgentStats)
 	}
 }
 
 func TestController_HashChanges_OnStateChange(t *testing.T) {
 	fm := buildControllerFleet()
-	bm := viewmodel.NewBuilder(fm)
-	c := NewController(fm, bm)
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
+
+	snap := &protocol.FleetSnapshot{
+		Version: 1, Seq: 1,
+		Machines: []protocol.MachineInfo{
+			{Name: "local", Abbr: "LCL", Color: "#4ADE80"},
+			{Name: "dev-server", Abbr: "DEV", Color: "#60A5FA"},
+		},
+		Agents: []protocol.AgentState{
+			{ID: "local|p1", Machine: "local", Agent: "pi", Name: "review", Status: protocol.StatusWorking, Focused: true, Workspace: "main-proj", PaneID: "p1"},
+			{ID: "local|p2", Machine: "local", Agent: "cursor", Status: protocol.StatusBlocked, Workspace: "main-proj", PaneID: "p2"},
+		},
+		Stats: protocol.AgentStats{Working: 1, Blocked: 1},
+	}
+	c.ApplySnapshot(snap)
 
 	// Capture initial hash
-	snap1 := c.Capture()
-	hash1 := snap1.Hash()
+	cap1 := c.Capture()
+	hash1 := cap1.Hash()
 
-	// Change viewmodel mode
-	bm.NextMachine()
-	snap2 := c.Capture()
-	hash2 := snap2.Hash()
+	// Change mode via K12
+	c.OnK12()
+	cap2 := c.Capture()
+	hash2 := cap2.Hash()
 
 	if hash1 == hash2 {
 		t.Error("hash should change when filter mode changes")
 	}
-	if !snap2.ChangedSince(hash1) {
+	if !cap2.ChangedSince(hash1) {
 		t.Error("ChangedSince should return true")
 	}
 }
 
 func TestController_HashSame_OnUnchangedState(t *testing.T) {
 	fm := buildControllerFleet()
-	bm := viewmodel.NewBuilder(fm)
-	c := NewController(fm, bm)
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
 
-	snap1 := c.Capture()
-	hash1 := snap1.Hash()
+	snap := &protocol.FleetSnapshot{
+		Version: 1, Seq: 1,
+		Machines: []protocol.MachineInfo{
+			{Name: "local", Abbr: "LCL", Color: "#4ADE80"},
+		},
+		Agents: []protocol.AgentState{
+			{ID: "local|p1", Machine: "local", Agent: "pi", Status: protocol.StatusWorking, Workspace: "main-proj", PaneID: "p1"},
+		},
+		Stats: protocol.AgentStats{Working: 1},
+	}
+	c.ApplySnapshot(snap)
+
+	cap1 := c.Capture()
+	hash1 := cap1.Hash()
 
 	// No state change → same hash
-	snap2 := c.Capture()
-	hash2 := snap2.Hash()
+	cap2 := c.Capture()
+	hash2 := cap2.Hash()
 
 	if hash1 != hash2 {
 		t.Errorf("hash should be same for unchanged state: %q vs %q", hash1, hash2)
 	}
-	if snap2.ChangedSince(hash1) {
+	if cap2.ChangedSince(hash1) {
 		t.Error("ChangedSince should return false")
 	}
 }
 
 func TestController_HashChanges_OnAgentStatusChange(t *testing.T) {
 	fm := buildControllerFleet()
-	bm := viewmodel.NewBuilder(fm)
-	c := NewController(fm, bm)
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
 
-	snap1 := c.Capture()
-	hash1 := snap1.Hash()
+	initialSnap := &protocol.FleetSnapshot{
+		Version: 1, Seq: 1,
+		Machines: []protocol.MachineInfo{{Name: "local", Abbr: "LCL", Color: "#4ADE80"}},
+		Agents: []protocol.AgentState{
+			{ID: "local|p1", Machine: "local", Agent: "pi", Name: "review", Status: protocol.StatusWorking, Focused: true, Workspace: "main-proj", PaneID: "p1"},
+			{ID: "local|p2", Machine: "local", Agent: "cursor", Status: protocol.StatusBlocked, Workspace: "main-proj", PaneID: "p2"},
+		},
+		Stats: protocol.AgentStats{Working: 1, Blocked: 1},
+	}
+	c.ApplySnapshot(initialSnap)
+	cap1 := c.Capture()
+	hash1 := cap1.Hash()
 
-	// Change agent status
-	fm.ApplySnapshot(&protocol.FleetSnapshot{
+	// Apply new snapshot with changed status
+	changedSnap := &protocol.FleetSnapshot{
 		Version: 1, Seq: 2,
 		Machines: []protocol.MachineInfo{{Name: "local", Abbr: "LCL", Color: "#4ADE80"}},
 		Agents: []protocol.AgentState{
-			{ID: "local|p1", Machine: "local", Agent: "pi", Name: "review", Status: protocol.StatusDone, Focused: true, Workspace: "main-proj", WorkspaceID: "ws-1", PaneID: "p1"},
-			{ID: "local|p2", Machine: "local", Agent: "cursor", Status: protocol.StatusBlocked, Workspace: "main-proj", WorkspaceID: "ws-1", PaneID: "p2"},
+			{ID: "local|p1", Machine: "local", Agent: "pi", Name: "review", Status: protocol.StatusDone, Focused: true, Workspace: "main-proj", PaneID: "p1"},
+			{ID: "local|p2", Machine: "local", Agent: "cursor", Status: protocol.StatusBlocked, Workspace: "main-proj", PaneID: "p2"},
 		},
 		Stats: protocol.AgentStats{Done: 1, Blocked: 1},
-	})
+	}
+	fm.ApplySnapshot(changedSnap)
+	c.ApplySnapshot(changedSnap)
 	c.MarkDirty()
 
-	snap2 := c.Capture()
-	hash2 := snap2.Hash()
+	cap2 := c.Capture()
+	hash2 := cap2.Hash()
 
 	if hash1 == hash2 {
 		t.Error("hash should change when agent status changes")
@@ -133,19 +185,27 @@ func TestController_HashChanges_OnAgentStatusChange(t *testing.T) {
 
 func TestController_HashChanges_OnK11Toggle(t *testing.T) {
 	fm := buildControllerFleet()
-	bm := viewmodel.NewBuilder(fm)
-	c := NewController(fm, bm)
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
 
-	snap1 := c.Capture()
-	hash1 := snap1.Hash()
+	snap := &protocol.FleetSnapshot{
+		Version: 1, Seq: 1,
+		Machines: []protocol.MachineInfo{{Name: "local", Abbr: "LCL", Color: "#4ADE80"}},
+		Agents: []protocol.AgentState{
+			{ID: "local|p1", Machine: "local", Agent: "pi", Status: protocol.StatusWorking, Workspace: "main-proj", PaneID: "p1"},
+		},
+		Stats: protocol.AgentStats{Working: 1},
+	}
+	c.ApplySnapshot(snap)
 
-	// Toggle K11
-	fm.SetK11Toggle(true)
-	fm.ToggleK11Filter()
-	bm.K11Filtered = true
+	cap1 := c.Capture()
+	hash1 := cap1.Hash()
 
-	snap2 := c.Capture()
-	hash2 := snap2.Hash()
+	// Toggle via K11
+	c.OnK11()
+
+	cap2 := c.Capture()
+	hash2 := cap2.Hash()
 
 	if hash1 == hash2 {
 		t.Error("hash should change when K11 toggle changes")
@@ -154,48 +214,92 @@ func TestController_HashChanges_OnK11Toggle(t *testing.T) {
 
 func TestController_Capture_FilterModeReflected(t *testing.T) {
 	fm := buildControllerFleet()
-	bm := viewmodel.NewBuilder(fm)
-	c := NewController(fm, bm)
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
+
+	snap := &protocol.FleetSnapshot{
+		Version: 1, Seq: 1,
+		Machines: []protocol.MachineInfo{
+			{Name: "local", Abbr: "LCL", Color: "#4ADE80"},
+			{Name: "dev-server", Abbr: "DEV", Color: "#60A5FA"},
+		},
+		Agents: []protocol.AgentState{
+			{ID: "local|p1", Machine: "local", Agent: "pi", Status: protocol.StatusWorking, Workspace: "main-proj", PaneID: "p1"},
+			{ID: "dev-server|p2", Machine: "dev-server", Agent: "devin", Status: protocol.StatusBlocked, Workspace: "backend", PaneID: "p2"},
+		},
+		Stats: protocol.AgentStats{Working: 1, Blocked: 1},
+	}
+	c.ApplySnapshot(snap)
 
 	// ALL mode
-	snap := c.Capture()
-	if snap.ConnName != "" {
-		t.Error("ALL mode: ConnName should be empty")
+	capState := c.Capture()
+	if capState.Model.Mode != displaymodel.ModeAll {
+		t.Errorf("expected ModeAll, got %v", capState.Model.Mode)
 	}
 
 	// Machine mode
-	bm.NextMachine()
-	snap = c.Capture()
-	if snap.Mode != viewmodel.ModeMachine {
-		t.Errorf("expected ModeMachine, got %v", snap.Mode)
-	}
-	if snap.ConnName == "" {
-		t.Error("Machine mode: ConnName should be set")
+	c.OnK12()
+	capState = c.Capture()
+	if capState.Model.Mode != displaymodel.ModeMachine {
+		t.Errorf("expected ModeMachine, got %v", capState.Model.Mode)
 	}
 
 	// Space mode
-	bm.NextSpace()
-	snap = c.Capture()
-	if snap.Mode != viewmodel.ModeSpace {
-		t.Errorf("expected ModeSpace, got %v", snap.Mode)
+	c.OnK13()
+	capState = c.Capture()
+	if capState.Model.Mode != displaymodel.ModeSpace {
+		t.Errorf("expected ModeSpace, got %v", capState.Model.Mode)
 	}
-	if snap.WsLabel == "" {
-		t.Error("Space mode: WsLabel should be set")
+}
+
+func TestController_LastModel(t *testing.T) {
+	fm := buildControllerFleet()
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
+
+	// No model before first Capture
+	if c.LastModel() != nil {
+		t.Error("LastModel should be nil before first Capture")
+	}
+
+	snap := &protocol.FleetSnapshot{
+		Version: 1, Seq: 1,
+		Machines: []protocol.MachineInfo{{Name: "local", Abbr: "LCL", Color: "#4ADE80"}},
+		Agents: []protocol.AgentState{
+			{ID: "local|p1", Machine: "local", Agent: "pi", Status: protocol.StatusWorking, Workspace: "main-proj", PaneID: "p1"},
+		},
+		Stats: protocol.AgentStats{Working: 1},
+	}
+	c.ApplySnapshot(snap)
+
+	_ = c.Capture()
+	m := c.LastModel()
+	if m == nil {
+		t.Fatal("LastModel should be non-nil after Capture")
+	}
+	if len(m.Agents) != 1 {
+		t.Errorf("expected 1 agent, got %d", len(m.Agents))
 	}
 }
 
 func TestController_EmptyFleet(t *testing.T) {
 	fm := fleet.NewManager()
-	bm := viewmodel.NewBuilder(fm)
-	c := NewController(fm, bm)
+	bld := displaymodel.NewBuilder()
+	c := NewController(fm, bld, true)
 
-	snap := c.Capture()
-	if snap.Stats != (protocol.AgentStats{}) {
-		t.Errorf("empty fleet: expected zero stats, got %+v", snap.Stats)
+	// No snapshot applied → Capture returns empty model
+	capState := c.Capture()
+	if capState.Model.Stats.AgentStats != (protocol.AgentStats{}) {
+		t.Errorf("empty fleet: expected zero stats, got %+v", capState.Model.Stats.AgentStats)
+	}
+	if capState.Hash() != "" {
+		t.Error("hash should be empty string when no snapshot applied")
 	}
 
-	hash := snap.Hash()
-	if hash == "" {
-		t.Error("hash should not be empty even for empty fleet")
+	// Apply empty snapshot
+	c.ApplySnapshot(&protocol.FleetSnapshot{})
+	capState = c.Capture()
+	if len(capState.Model.Agents) != 0 {
+		t.Errorf("empty snapshot: expected 0 agents, got %d", len(capState.Model.Agents))
 	}
 }

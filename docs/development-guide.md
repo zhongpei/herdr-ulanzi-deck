@@ -35,6 +35,7 @@ bash scripts/deploy-all.sh
 - collector must start before deck (deck connects to collector's embedded NATS)
 - After modifying `collector/**/*.go` → `cd collector && make test && make build`
 - After modifying `deck/**/*.go` → `cd deck && make test && make build`
+- After modifying `displaymodel/**/*.go` → `cd displaymodel && go test ./...`
 - After modifying `protocol/**/*.go` → `cd protocol && go test ./...`
 
 ---
@@ -51,24 +52,31 @@ Logs go to stderr with zerolog (colored output):
 # Log levels: DBG(cyan) INF(green) WRN(yellow) ERR(red)
 ```
 
+For hardware-specific debugging (UlanziDeck WebSocket protocol, key mapping, profile issues),
+see [debugging.md](./debugging.md).
+
 ---
 
 ## Tests
 
 ```bash
 # Per module
-cd protocol   && go test ./...
-cd collector  && make test
-cd deck       && make test
+cd protocol     && go test ./...
+cd displaymodel && go test ./...
+cd collector    && make test
+cd deck         && make test
+
+# Full workspace
+cd .. && go test ./... 2>&1 | tail -1
 
 # E2E tests (requires Docker)
-cd e2e        && go test -v -count=1 ./...
+cd e2e && go test -v -count=1 ./...
 ```
 
 ---
 
 ## Architecture Reference
 
-- [docs/architecture.md](./architecture.md) — Original single-process architecture
-- [docs/go-architecture.md](./go-architecture.md) — Three-process architecture blueprint
-- [docs/modules.md](./modules.md) — Module-by-module code documentation
+- [AGENTS.md](../AGENTS.md) — Project overview, modules, data flow, dependencies
+- [docs/pet.md](./pet.md) — Desktop companion (herdr-pet) design blueprint
+- [docs/archive/](./archive/) — Archived v1 architecture docs

@@ -3,6 +3,7 @@ go 1.26.2
 use (
 	./collector
 	./deck
+	./displaymodel
 	./e2e
 	./protocol
 )

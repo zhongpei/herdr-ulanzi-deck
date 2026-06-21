@@ -4,8 +4,11 @@ go 1.26.2
 
 replace github.com/herdr-deck/herdrdeck/protocol => ../protocol
 
+replace github.com/herdr-deck/herdrdeck/displaymodel => ../displaymodel
+
 require (
 	github.com/gorilla/websocket v1.5.3
+	github.com/herdr-deck/herdrdeck/displaymodel v0.0.0-00010101000000-000000000000
 	github.com/herdr-deck/herdrdeck/protocol v0.0.0-00010101000000-000000000000
 	github.com/nats-io/nats-server/v2 v2.14.2
 	github.com/nats-io/nats.go v1.52.0

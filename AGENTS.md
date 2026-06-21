@@ -18,7 +18,7 @@ herdr-collector → embedded NATS → herdr-deck (Ulanzi D200X)
 
 ```
 herdr-agentview/
-├── go.work                    ← Go workspace ties 3 modules together
+├── go.work                    ← Go workspace ties 5 modules together
 ├── protocol/                  ← Shared types, enums, NATS subjects
 │   └── go.mod
 ├── collector/                 ← State collection + embedded NATS server
@@ -31,6 +31,10 @@ herdr-agentview/
 │   ├── Makefile
 │   ├── cmd/herdr-deck/main.go
 │   └── internal/{subscriber,fleet,viewmodel,render,deckclient,controller,profile,sysstats}
+├── displaymodel/              ← Shared display semantics (filtering, navigation, stats)
+│   ├── go.mod
+│   ├── model.go
+│   └── builder.go
 └── scripts/
     ├── deploy-collector.sh
     ├── deploy-deck.sh
@@ -41,21 +45,14 @@ herdr-agentview/
 
 ```bash
 # Single module
-cd protocol   && go test ./...
-cd collector  && make build && ./build/herdr-collector --debug
-cd deck       && make build && ./build/herdr-deck --debug
+cd protocol     && go test ./...
+cd displaymodel && go test ./...
+cd collector    && make build && ./build/herdr-collector --debug
+cd deck         && make build && ./build/herdr-deck --debug
 
 # Or via workspace
 go work sync && go vet ./...
 bash scripts/deploy-all.sh
-```
-
-## Test
-
-```bash
-cd collector && make test     # 14 tests in 8 packages
-cd deck      && make test     # 53 tests in 9 packages
-cd protocol  && go test ./... # 4 tests
 ```
 
 ## Config
@@ -78,8 +75,9 @@ herdr-collector (2s fetch)
   ▼
 herdr-deck (50ms render)
   ├── subscriber (NATS → FleetSnapshot)
-  ├── fleet.Manager (sort/filter/stats/duration)
-  ├── viewmodel.Builder (14 KeyCommand)
+  ├── fleet.Manager (duration/health/sysstats)
+  ├── displaymodel.Builder (ViewState → Model)
+  ├── viewmodel.Adapt (Model → 14 KeyCommand)
   ├── render (SVG)
   ├── deckclient (SVG→PNG→WebSocket → UlanziDeck)
   └── profile (D200X profile auto-create)
@@ -90,8 +88,9 @@ herdr-deck (50ms render)
 | Module | Depends on |
 |--------|-----------|
 | protocol | (none) |
+| displaymodel | protocol |
 | collector | protocol, nats-server, nats.go, zerolog, cobra |
-| deck | protocol, nats.go, gorilla/websocket, tdewolff/canvas, gopsutil, zerolog, cobra |
+| deck | protocol, displaymodel, nats.go, gorilla/websocket, tdewolff/canvas, gopsutil, zerolog, cobra |
 
 ## Important Rules
 
@@ -100,3 +99,4 @@ herdr-deck (50ms render)
 3. Only protocol types on the NATS wire
 4. Deck never connects to herdr directly — all state via NATS
 5. K11Toggle is a deck-side preference (CLI flag, not in connections.json)
+6. Deck and pet share displaymodel — never duplicate filter/navigation logic

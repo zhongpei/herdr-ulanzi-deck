@@ -7,21 +7,19 @@ package fleet
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/herdr-deck/herdrdeck/protocol"
 )
 
-// Manager holds the fleet state and provides filtered views for rendering.
+// Manager holds the fleet state, duration tracking, health, and system stats.
+// Filtering and navigation semantics are handled by displaymodel.Builder.
 type Manager struct {
 	machines      []protocol.MachineInfo
 	agents        []protocol.AgentState
 	cpuPercent    float64
 	memoryPercent float64
 	statusSince   map[string]time.Time // "machine|paneID" → when current status started
-	k11Filtered   bool
-	k11Toggle     bool
 
 	// Health tracking
 	lastHeartbeat time.Time
@@ -74,17 +72,17 @@ func (m *Manager) ApplySnapshot(snap *protocol.FleetSnapshot) {
 // It is NOT the protocol.AgentState — it adds machine abbreviation/color
 // that were previously in UnifiedWorkspace.
 type AgentInfo struct {
-	PaneID       string
-	Agent        string
-	Name         string
-	Status       protocol.AgentStatus
-	Focused      bool
-	ConnName     string
-	ConnAbbr     string
+	PaneID        string
+	Agent         string
+	Name          string
+	Status        protocol.AgentStatus
+	Focused       bool
+	ConnName      string
+	ConnAbbr      string
 	ConnAbbrColor string
-	WsLabel      string
-	WsID         string
-	TabLabel     string
+	WsLabel       string
+	WsID          string
+	TabLabel      string
 }
 
 // buildEnrichedAgents converts flat AgentState + MachineInfo into enriched
@@ -118,62 +116,6 @@ func (m *Manager) buildEnrichedAgents() []AgentInfo {
 // GetAllAgents returns all enriched agents.
 func (m *Manager) GetAllAgents() []AgentInfo {
 	return m.buildEnrichedAgents()
-}
-
-// GetFilteredAgents returns sorted, filtered, truncated (≤10) agent list.
-// filterConnName and filterWsLabel are optional; empty means no filter.
-func (m *Manager) GetFilteredAgents(filterConnName, filterWsLabel string) []AgentInfo {
-	agents := m.buildEnrichedAgents()
-
-	// Apply machine filter (only when no global space filter)
-	if filterConnName != "" && filterWsLabel == "" {
-		var filtered []AgentInfo
-		for _, a := range agents {
-			if a.ConnName == filterConnName {
-				filtered = append(filtered, a)
-			}
-		}
-		agents = filtered
-	}
-
-	// Apply global space filter by LABEL
-	if filterWsLabel != "" {
-		var filtered []AgentInfo
-		for _, a := range agents {
-			if a.WsLabel == filterWsLabel {
-				filtered = append(filtered, a)
-			}
-		}
-		agents = filtered
-	}
-
-	// Apply K11 toggle status filter
-	if m.k11Filtered {
-		var filtered []AgentInfo
-		for _, a := range agents {
-			if a.Status == protocol.StatusBlocked ||
-				a.Status == protocol.StatusWorking ||
-				a.Status == protocol.StatusDone {
-				filtered = append(filtered, a)
-			}
-		}
-		agents = filtered
-	}
-
-	// Sort: by status priority (lower = higher priority), then by machine name
-	sort.Slice(agents, func(i, j int) bool {
-		pi := protocol.StatusPriority[agents[i].Status]
-		pj := protocol.StatusPriority[agents[j].Status]
-		if pi != pj {
-			return pi < pj
-		}
-		return agents[i].ConnName < agents[j].ConnName
-	})
-
-	if len(agents) > 10 {
-		agents = agents[:10]
-	}
-	return agents
 }
 
 // GetMachines returns unique machine references in connection order.
@@ -240,12 +182,6 @@ func (m *Manager) FormatAgentDuration(machine, paneID string) string {
 	}
 	return formatDuration(d)
 }
-
-// ─── K11 Toggle ─────────────────────────────────────────────
-
-func (m *Manager) SetK11Toggle(enabled bool) { m.k11Toggle = enabled }
-func (m *Manager) ToggleK11Filter()          { m.k11Filtered = !m.k11Filtered }
-func (m *Manager) IsK11Filtered() bool       { return m.k11Filtered }
 
 // ─── System stats ──────────────────────────────────────────
 

@@ -161,7 +161,6 @@ func TestSubscriber_ConnectionFail(t *testing.T) {
 	}
 }
 
-
 func TestSubscriber_SnapshotChannelNonBlocking(t *testing.T) {
 	url, cleanup := startEmbeddedNATS(t)
 	defer cleanup()

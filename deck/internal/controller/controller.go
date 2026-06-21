@@ -8,36 +8,78 @@ import (
 	"fmt"
 
 	"github.com/herdr-deck/herdrdeck/deck/internal/fleet"
-	"github.com/herdr-deck/herdrdeck/deck/internal/viewmodel"
+	"github.com/herdr-deck/herdrdeck/displaymodel"
 	"github.com/herdr-deck/herdrdeck/protocol"
 )
 
-// State holds render-relevant state at a point in time.
-type State struct {
-	Mode          viewmodel.FilterMode
-	ConnName      string
-	WsLabel       string
-	K11Filtered   bool
-	Stats         protocol.AgentStats
-	CPUPercent    float64
-	MemoryPercent float64
-	durationFP    string
-	hash          string
+// CaptureState holds the rendered display model and its fingerprint at a
+// point in time. Used for hash-based render dedup.
+type CaptureState struct {
+	Model displaymodel.Model
+	hash  string
 }
+
+// Hash returns the fingerprint for render dedup comparison.
+func (s *CaptureState) Hash() string { return s.hash }
+
+// ChangedSince returns true if this state differs from a previous hash.
+func (s *CaptureState) ChangedSince(prevHash string) bool { return s.hash != prevHash }
 
 // Controller manages the deck's render cycle.
 type Controller struct {
-	fleet   *fleet.Manager
-	builder *viewmodel.Builder
-	dirty   bool
+	fleet        *fleet.Manager
+	displayBld   *displaymodel.Builder
+	dirty        bool
+	lastSnapshot *protocol.FleetSnapshot
+	lastModel    *displaymodel.Model
+	k11Enabled   bool // K11Toggle from CLI flag
 }
 
-// NewController creates a controller wrapping fleet manager and viewmodel builder.
-func NewController(fm *fleet.Manager, bm *viewmodel.Builder) *Controller {
+// NewController creates a controller wrapping fleet manager, displaymodel builder,
+// and K11 toggle preference.
+func NewController(fm *fleet.Manager, bld *displaymodel.Builder, k11Enabled bool) *Controller {
 	return &Controller{
-		fleet:   fm,
-		builder: bm,
+		fleet:      fm,
+		displayBld: bld,
+		k11Enabled: k11Enabled,
 	}
+}
+
+// ApplySnapshot caches the latest snapshot for use by displaymodel builder.
+func (c *Controller) ApplySnapshot(snap *protocol.FleetSnapshot) {
+	c.lastSnapshot = snap
+}
+
+// OnK11 handles the K11 (ALL/ACT) key press.
+// Preserves current behavior: always resets to ALL mode first, then toggles
+// the ActiveOnly filter when K11Toggle is enabled.
+func (c *Controller) OnK11() {
+	c.displayBld.SetAll()
+	if c.k11Enabled {
+		c.displayBld.ToggleActiveOnly()
+	}
+	c.MarkDirty()
+}
+
+// OnK12 handles the K12 (machine cycle) key press.
+func (c *Controller) OnK12() {
+	if snap := c.lastSnapshot; snap != nil {
+		c.displayBld.NextMachine(snap)
+	}
+	c.MarkDirty()
+}
+
+// OnK13 handles the K13 (space cycle) key press.
+func (c *Controller) OnK13() {
+	if snap := c.lastSnapshot; snap != nil {
+		c.displayBld.NextSpace(snap)
+	}
+	c.MarkDirty()
+}
+
+// LastModel returns the most recently built display model, or nil.
+func (c *Controller) LastModel() *displaymodel.Model {
+	return c.lastModel
 }
 
 // MarkDirty flags the controller for the next render cycle.
@@ -55,63 +97,59 @@ func (c *Controller) MarkClean() {
 	c.dirty = false
 }
 
-// Capture reads the current fleet/viewmodel state and returns a State snapshot.
-func (c *Controller) Capture() *State {
+// Capture reads the current fleet/viewmodel state and returns a CaptureState
+// with the built display model and its hash fingerprint.
+func (c *Controller) Capture() *CaptureState {
+	if c.lastSnapshot == nil {
+		// Before first snapshot, return empty model
+		model := c.displayBld.Build(&protocol.FleetSnapshot{}, displaymodel.LocalStats{}, nil)
+		return &CaptureState{Model: model, hash: ""}
+	}
+
+	// Gather durations from fleet manager
+	durations := make(map[string]string, len(c.lastSnapshot.Agents))
+	for _, a := range c.lastSnapshot.Agents {
+		durations[a.ID] = c.fleet.FormatAgentDuration(a.Machine, a.PaneID)
+	}
+
+	// Gather local stats
 	cpu, mem := c.fleet.GetSysStats()
-	agents := c.fleet.GetFilteredAgents(c.builder.ConnName, c.builder.WsLabel)
+	local := displaymodel.LocalStats{CPUPercent: cpu, MemoryPercent: mem}
 
-	var durFP string
-	for _, a := range agents {
-		d := c.fleet.FormatAgentDuration(a.ConnName, a.PaneID)
-		durFP += a.PaneID + "=" + d + "|"
-	}
+	// Build display model
+	model := c.displayBld.Build(c.lastSnapshot, local, durations)
+	c.lastModel = &model
 
-	snap := &State{
-		Mode:          c.builder.Mode,
-		ConnName:      c.builder.ConnName,
-		WsLabel:       c.builder.WsLabel,
-		K11Filtered:   c.builder.K11Filtered,
-		Stats:         c.fleet.ComputeStats(),
-		CPUPercent:    cpu,
-		MemoryPercent: mem,
-		durationFP:    durFP,
-	}
-	snap.hash = visualHash(agents, snap)
-	return snap
+	// Compute hash fingerprint
+	hash := visualHash(model)
+	return &CaptureState{Model: model, hash: hash}
 }
 
-// ChangedSince returns true if the snapshot differs from a previous hash.
-func (s *State) ChangedSince(prevHash string) bool {
-	return s.hash != prevHash
-}
-
-// Hash returns the visual hash for dedup comparison.
-func (s *State) Hash() string {
-	return s.hash
-}
-
-func visualHash(agents []fleet.AgentInfo, s *State) string {
+func visualHash(m displaymodel.Model) string {
 	var fp string
-	for _, a := range agents {
+	for _, a := range m.Agents {
 		fp += a.PaneID + "|" + a.Agent + "|" + string(a.Status) + "|"
 		if a.Focused {
 			fp += "1"
 		} else {
 			fp += "0"
 		}
-		fp += "|" + a.Name + "|" + a.ConnName + "|" + a.WsLabel + "\n"
+		fp += "|" + a.Name + "|" + a.ConnName + "|" + a.WsLabel + "|" + a.StatusDuration + "\n"
+	}
+	// Pad empty slots to ensure consistent hash length
+	for i := len(m.Agents); i < 10; i++ {
+		fp += "empty\n"
 	}
 	filt := "0"
-	if s.K11Filtered {
+	if m.NavAll.Filtered {
 		filt = "1"
 	}
-	fp += "M" + itoa(int(s.Mode)) + "|" + s.ConnName + "|" + s.WsLabel + "|" + filt + "\n"
-	fp += "S" + itoa(s.Stats.Done) + itoa(s.Stats.Idle) +
-		itoa(s.Stats.Working) + itoa(s.Stats.Blocked) + itoa(s.Stats.Unknown)
-	cpuStr := fmt.Sprintf("%.1f", s.CPUPercent)
-	memStr := fmt.Sprintf("%.1f", s.MemoryPercent)
+	fp += "M" + itoa(int(m.Mode)) + "|" + filt + "\n"
+	fp += "S" + itoa(m.Stats.AgentStats.Done) + itoa(m.Stats.AgentStats.Idle) +
+		itoa(m.Stats.AgentStats.Working) + itoa(m.Stats.AgentStats.Blocked) + itoa(m.Stats.AgentStats.Unknown)
+	cpuStr := fmt.Sprintf("%.1f", m.Stats.CPUPercent)
+	memStr := fmt.Sprintf("%.1f", m.Stats.MemoryPercent)
 	fp += "CPU" + cpuStr + "|MEM" + memStr
-	fp += "|DUR|" + s.durationFP
 	return fp
 }
 
