@@ -1,5 +1,5 @@
 // Package subscriber subscribes to NATS subjects (snapshot + heartbeat) and
-// delivers them to the panel via channels. Adapted from deck/internal/subscriber.
+// delivers them to the panel via channels.
 package subscriber
 
 import (
@@ -25,7 +25,7 @@ func New(natsAddr string) (*Subscriber, error) {
 	var nc *nats.Conn
 	var err error
 
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 3; i++ {
 		nc, err = nats.Connect(natsAddr,
 			nats.RetryOnFailedConnect(true),
 			nats.ReconnectWait(2*time.Second),

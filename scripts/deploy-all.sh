@@ -57,9 +57,9 @@ if ! kill -0 $DECK_PID 2>/dev/null; then
 	echo "Deck PID: $DECK_PID"
 fi
 
-# ── Panel ─────────────────────────────────────────────────
-echo "=== Building panel ==="
-cd "$REPO_ROOT/panel"
+# ── Panel (Gio) ───────────────────────────────────────────
+echo "=== Building panel (Gio) ==="
+cd "$REPO_ROOT/panel-gio"
 make build
 
 echo "=== Starting panel ==="

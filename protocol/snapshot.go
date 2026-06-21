@@ -3,10 +3,10 @@ package protocol
 // MachineInfo carries connection identity metadata for a single machine
 // that collector is pulling state from.
 type MachineInfo struct {
-	Name       string `json:"name"`        // Internal identifier
-	Abbr       string `json:"abbr"`        // Abbreviation shown on K12
-	Color      string `json:"color"`       // Machine color for K12 background
-	Health     string `json:"health"`      // "online", "offline"
+	Name       string `json:"name"`   // Internal identifier
+	Abbr       string `json:"abbr"`   // Abbreviation shown on K12
+	Color      string `json:"color"`  // Machine color for K12 background
+	Health     string `json:"health"` // "online", "offline"
 	LastError  string `json:"last_error,omitempty"`
 	LastSeenAt string `json:"last_seen_at,omitempty"`
 }
@@ -16,13 +16,13 @@ type MachineInfo struct {
 //
 // ID is the stable unique key: "machineName|paneID".
 type AgentState struct {
-	ID          string      `json:"id"`          // "machineName|paneID"
-	Machine     string      `json:"machine"`     // connection name (matches MachineInfo.Name)
-	Agent       string      `json:"agent"`       // agent type (pi, claude, cursor, ...)
-	Name        string      `json:"name"`        // alias / pane label / tab label
+	ID          string      `json:"id"`      // "machineName|paneID"
+	Machine     string      `json:"machine"` // connection name (matches MachineInfo.Name)
+	Agent       string      `json:"agent"`   // agent type (pi, claude, cursor, ...)
+	Name        string      `json:"name"`    // alias / pane label / tab label
 	Status      AgentStatus `json:"status"`
 	Focused     bool        `json:"focused"`
-	Workspace   string      `json:"workspace"`   // workspace label (display name)
+	Workspace   string      `json:"workspace"` // workspace label (display name)
 	WorkspaceID string      `json:"workspace_id"`
 	TabLabel    string      `json:"tab_label,omitempty"`
 	PaneID      string      `json:"pane_id"`

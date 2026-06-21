@@ -1,9 +1,12 @@
-.PHONY: build test clean vet
+.PHONY: build test clean vet run
 
 BINARY := build/herdr-panel
 
 build:
 	go build -o $(BINARY) ./cmd/herdr-panel/
+
+run: build
+	./$(BINARY)
 
 test:
 	go test ./... -count=1

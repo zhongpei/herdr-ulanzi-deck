@@ -5,20 +5,20 @@
 Display herdr AI agent status on Ulanzi D200X macro keypad and desktop panel.
 
 **Platform**: macOS, Linux, Windows
-**Architecture**: Three-process (collector + deck + panel)
+**Architecture**: Three-process (collector + deck + panel-gio)
 
 ## Architecture
 
 ```
 herdr-collector → embedded NATS → herdr-deck   (Ulanzi D200X)
-                               → herdr-panel  (desktop reminder panel)
+                               → herdr-panel  (desktop Gio panel)
 ```
 
 ## Go Modules
 
 ```
 herdr-agentview/
-├── go.work                    ← Go workspace ties 5 modules together
+├── go.work                    ← Go workspace ties 6 modules together
 ├── protocol/                  ← Shared types, enums, NATS subjects
 │   └── go.mod
 ├── collector/                 ← State collection + embedded NATS server
@@ -35,13 +35,15 @@ herdr-agentview/
 │   ├── go.mod
 │   ├── model.go
 │   └── builder.go
-├── panel/                     ← Desktop reminder panel (Fyne GUI)
+├── panel-gio/                 ← Desktop Fleet Board (Gio UI, replaces legacy Fyne panel)
 │   ├── go.mod
+│   ├── Makefile
 │   ├── cmd/herdr-panel/main.go
-│   └── internal/{subscriber,state,app,ui,alert,sysstats}
+│   └── internal/{subscriber,store,alert,board,command,config}
 └── scripts/
     ├── deploy-collector.sh
     ├── deploy-deck.sh
+    ├── deploy-panel-gio.sh
     └── deploy-all.sh
 ```
 
@@ -49,11 +51,11 @@ herdr-agentview/
 
 ```bash
 # Single module
-cd protocol     && go test ./...
-cd displaymodel && go test ./...
-cd collector    && make build && ./build/herdr-collector --debug
-cd deck         && make build && ./build/herdr-deck --debug
-cd panel        && go build -o build/herdr-panel ./cmd/herdr-panel/
+cd protocol       && go test ./...
+cd displaymodel   && go test ./...
+cd collector      && make build && ./build/herdr-collector --debug
+cd deck           && make build && ./build/herdr-deck --debug
+cd panel-gio      && make build && ./build/herdr-panel --debug
 
 # Or via workspace
 go work sync && go vet ./...
@@ -64,7 +66,8 @@ bash scripts/deploy-all.sh
 
 - collector reads: `~/.config/herdr-deck/connections.json`
 - deck uses CLI flags: `--nats`, `--addr`, `--port`, `--k11-toggle`, `--debug`
-- panel uses CLI flags: `--nats`, `--debug`
+- panel-gio uses CLI flags: `--nats`, `--debug`
+- panel-gio persists window size to `~/.config/herdr-deck/panel-gio.json`
 
 ## Data Flow
 
@@ -89,17 +92,18 @@ herdr-deck (50ms render)
   └── profile (D200X profile auto-create)
 
   ▼
-herdr-panel (1s refresh)
+herdr-panel (Gio, ~200ms render)
   ├── subscriber (NATS → FleetSnapshot)
-  ├── state.Store (latest snapshot + ViewState + health)
+  ├── store (latest snapshot + ViewState + health)
   ├── displaymodel.Builder (ViewState → Model)
-  ├── ui/main_window    (Fyne window, close→tray, remember geometry)
-  ├── ui/stats_bar      (K14: agent counts + CPU/MEM)
-  ├── ui/toolbar        (K11: ALL/ACT buttons + K12/K13 dropdowns)
-  ├── ui/card_grid      (2×3 agent status cards, priority truncated)
-  ├── ui/tray           (system tray menu)
-  ├── alert/monitor     (state-change detection + window popup)
-  └── sysstats          (local CPU/MEM)
+  ├── board.LayoutBoard: 5-region Fleet Board
+  │   ├── TopHealth   (K14: agent counts + LIVE indicator)
+  │   ├── Lens        (K11-K13: ACT/ALL + MACHINE toggles + SPACES toggles)
+  │   ├── Attention   (priority agent cards, max 3)
+  │   ├── AGENT GRID  (machines × agents status chips)
+  │   └── Selected    (selected agent info + shortcuts)
+  ├── input/keyboard (A/M/P/R/1-9/Enter/Esc)
+  └── config (persistent window size)
 ```
 
 ## Dependencies
@@ -110,13 +114,12 @@ herdr-panel (1s refresh)
 | displaymodel | protocol |
 | collector | protocol, nats-server, nats.go, zerolog, cobra |
 | deck | protocol, displaymodel, nats.go, gorilla/websocket, tdewolff/canvas, gopsutil, zerolog, cobra |
-| panel | protocol, displaymodel, fyne.io/fyne/v2, nats.go, gopsutil, zerolog, cobra |
+| panel-gio | protocol, displaymodel, gioui.org, nats.go, zerolog, cobra |
 
 ## Important Rules
 
 1. After modifying Go files → run `go vet ./... && go test ./...` in the affected module
-2. Never cross-import between collector and deck/panel
+2. Never cross-import between collector and deck/panel-gio
 3. Only protocol types on the NATS wire
-4. Deck/panel never connects to herdr directly — all state via NATS
-5. K11Toggle is a deck-side preference (CLI flag, not in connections.json)
-6. Deck and panel share displaymodel — never duplicate filter/navigation logic
+4. Deck/panel-gio never connects to herdr directly — all state via NATS
+5. Deck and panel-gio share displaymodel — never duplicate filter/navigation logic

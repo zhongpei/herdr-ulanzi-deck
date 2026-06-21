@@ -116,10 +116,10 @@ func (b *Bridge) FetchAll() []FetchResult {
 			for _, conn := range b.connections {
 				if !containsResult(results, conn.Name) {
 					results = append(results, FetchResult{
-						ConnName: conn.Name,
-						ConnAbbr: conn.Abbr,
+						ConnName:  conn.Name,
+						ConnAbbr:  conn.Abbr,
 						ConnColor: conn.Color,
-						Err:      ctx.Err(),
+						Err:       ctx.Err(),
 					})
 				}
 			}

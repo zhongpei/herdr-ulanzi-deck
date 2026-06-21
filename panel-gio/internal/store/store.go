@@ -1,6 +1,6 @@
-// Package state holds the latest FleetSnapshot, ViewState, and collector health.
+// Package store holds the latest FleetSnapshot, ViewState, and collector health.
 // It is the single source of truth for the panel's display state.
-package state
+package store
 
 import (
 	"sync"

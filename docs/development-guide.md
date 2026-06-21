@@ -24,7 +24,16 @@ cd deck && make build
 bash scripts/deploy-deck.sh
 ```
 
-### Both (collector + deck)
+### Panel (Gio)
+
+```bash
+cd panel-gio && make build
+./build/herdr-panel --debug
+# or
+bash scripts/deploy-panel-gio.sh
+```
+
+### All (collector + deck + panel)
 
 ```bash
 bash scripts/deploy-all.sh
@@ -32,9 +41,10 @@ bash scripts/deploy-all.sh
 
 ### Rules
 
-- collector must start before deck (deck connects to collector's embedded NATS)
+- collector must start before deck/panel (they connect to collector's embedded NATS)
 - After modifying `collector/**/*.go` → `cd collector && make test && make build`
 - After modifying `deck/**/*.go` → `cd deck && make test && make build`
+- After modifying `panel-gio/**/*.go` → `cd panel-gio && make build`
 - After modifying `displaymodel/**/*.go` → `cd displaymodel && go test ./...`
 - After modifying `protocol/**/*.go` → `cd protocol && go test ./...`
 
@@ -78,5 +88,4 @@ cd e2e && go test -v -count=1 ./...
 ## Architecture Reference
 
 - [AGENTS.md](../AGENTS.md) — Project overview, modules, data flow, dependencies
-- [docs/pet.md](./pet.md) — Desktop companion (herdr-pet) design blueprint
-- [docs/archive/](./archive/) — Archived v1 architecture docs
+- [docs/archive/](./archive/) — Archived docs

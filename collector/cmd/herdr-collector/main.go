@@ -228,13 +228,6 @@ func refreshAndPublish() {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // ── Logger init ───────────────────────────────────────────
 func initLogger(debug bool) {
 	output := zerolog.ConsoleWriter{
