@@ -1,8 +1,8 @@
 // Package fleet maintains the canonical fleet state inside the collector.
-//
 // Responsibilities:
-//   - Accept raw workspace data from bridge
+//   - Accept FetchResult from bridge (success+error per connection)
 //   - Convert to protocol.FleetSnapshot
+//   - Track machine health (online/offline)
 //   - Track monotonic sequence numbers
 //   - Compute agent stats
 package fleet
@@ -17,9 +17,21 @@ import (
 
 // Store holds the authoritative fleet state.
 type Store struct {
-	mu       sync.RWMutex
-	snapshot *protocol.FleetSnapshot
-	seq      uint64
+	mu        sync.RWMutex
+	snapshot  *protocol.FleetSnapshot
+	machines  map[string]*machineState
+	order     []string // insertion order of machine keys, for deterministic output
+	seq       uint64
+}
+
+type machineState struct {
+	name       string
+	abbr       string
+	color      string
+	health     string // "online" or "offline"
+	lastError  string
+	lastSeenAt string
+	agents     []protocol.AgentState
 }
 
 // NewStore creates an empty fleet store.
@@ -28,43 +40,94 @@ func NewStore() *Store {
 		snapshot: &protocol.FleetSnapshot{
 			Version: protocol.SchemaVersion,
 		},
+		machines: make(map[string]*machineState),
 	}
 }
 
-// ApplyRaw takes fresh raw data from the bridge and updates the fleet state.
-// Returns true if the snapshot changed.
-func (s *Store) ApplyRaw(raw []bridge.RawWorkspace) bool {
+// ApplyResults takes fetch results from the bridge and updates the fleet state.
+// Failed connections are reflected as machines with Health=offline,
+// retaining their last known agents.
+func (s *Store) ApplyResults(results []bridge.FetchResult) bool {
 	now := time.Now().UTC().Format(time.RFC3339)
+	seen := make(map[string]bool)
 
-	machineSet := make(map[string]protocol.MachineInfo)
-	var agents []protocol.AgentState
-	stats := protocol.AgentStats{}
-
-	for _, ws := range raw {
-		machineSet[ws.ConnName] = protocol.MachineInfo{
-			Name:  ws.ConnName,
-			Abbr:  ws.ConnAbbr,
-			Color: ws.ConnAbbrColor,
+	for _, r := range results {
+		seen[r.ConnName] = true
+		ms, exists := s.machines[r.ConnName]
+		if !exists {
+			ms = &machineState{
+				name:  r.ConnName,
+				abbr:  r.ConnAbbr,
+				color: r.ConnColor,
+			}
+			s.machines[r.ConnName] = ms
+			s.order = append(s.order, r.ConnName)
 		}
 
-		for _, a := range ws.Agents {
-			status := mapStatus(a.Status)
-			agent := protocol.AgentState{
-				ID:          ws.ConnName + "|" + a.PaneID,
-				Machine:     ws.ConnName,
-				Agent:       a.Agent,
-				Name:        coalesce(a.Name, a.TabLabel, a.Agent, ""),
-				Status:      status,
-				Focused:     a.Focused,
-				Workspace:   ws.Label,
-				WorkspaceID: ws.WorkspaceID,
-				TabLabel:    a.TabLabel,
-				PaneID:      a.PaneID,
-				UpdatedAt:   now,
+		if r.Err != nil {
+			// Connection failed — mark offline, keep last agents
+			ms.health = "offline"
+			ms.lastError = r.Err.Error()
+			if len(ms.lastError) > 120 {
+				ms.lastError = ms.lastError[:120]
 			}
-			agents = append(agents, agent)
+			continue
+		}
 
-			switch status {
+		// Connection succeeded — update agents
+		ms.health = "online"
+		ms.lastError = ""
+		ms.lastSeenAt = now
+
+		var agents []protocol.AgentState
+		for _, ws := range r.Workspaces {
+			for _, a := range ws.Agents {
+				agents = append(agents, protocol.AgentState{
+					ID:          ws.ConnName + "|" + a.PaneID,
+					Machine:     ws.ConnName,
+					Agent:       a.Agent,
+					Name:        coalesce(a.Name, a.TabLabel, a.Agent, ""),
+					Status:      mapStatus(a.Status),
+					Focused:     a.Focused,
+					Workspace:   ws.Label,
+					WorkspaceID: ws.WorkspaceID,
+					TabLabel:    a.TabLabel,
+					PaneID:      a.PaneID,
+					UpdatedAt:   now,
+				})
+			}
+		}
+		ms.agents = agents
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Build machines and agents from state (deterministic order)
+	machines := make([]protocol.MachineInfo, 0, len(s.order))
+	var allAgents []protocol.AgentState
+	stats := protocol.AgentStats{}
+
+	for _, name := range s.order {
+		ms, ok := s.machines[name]
+		if !ok {
+			continue
+		}
+		if !seen[ms.name] {
+			continue
+		}
+		machines = append(machines, protocol.MachineInfo{
+			Name:       ms.name,
+			Abbr:       ms.abbr,
+			Color:      ms.color,
+			Health:     ms.health,
+			LastError:  ms.lastError,
+			LastSeenAt: ms.lastSeenAt,
+		})
+		allAgents = append(allAgents, ms.agents...)
+
+		for _, a := range ms.agents {
+			switch a.Status {
 			case protocol.StatusDone:
 				stats.Done++
 			case protocol.StatusIdle:
@@ -79,26 +142,13 @@ func (s *Store) ApplyRaw(raw []bridge.RawWorkspace) bool {
 		}
 	}
 
-	// Build ordered machine list
-	machines := make([]protocol.MachineInfo, 0, len(machineSet))
-	for _, ws := range raw {
-		name := ws.ConnName
-		if m, ok := machineSet[name]; ok {
-			machines = append(machines, m)
-			delete(machineSet, name)
-		}
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.seq++
 	snap := &protocol.FleetSnapshot{
 		Version:   protocol.SchemaVersion,
 		Seq:       s.seq,
 		UpdatedAt: now,
 		Machines:  machines,
-		Agents:    agents,
+		Agents:    allAgents,
 		Stats:     stats,
 	}
 
@@ -107,16 +157,50 @@ func (s *Store) ApplyRaw(raw []bridge.RawWorkspace) bool {
 	return changed
 }
 
+// ApplyRaw is the old API kept for backward compat with tests.
+// Calls ApplyResults with all-successful FetchResults.
+func (s *Store) ApplyRaw(raw []bridge.RawWorkspace) bool {
+	results := make([]bridge.FetchResult, 0, len(raw))
+	seen := make(map[string]bool)
+	for _, ws := range raw {
+		if seen[ws.ConnName] {
+			continue
+		}
+		seen[ws.ConnName] = true
+		results = append(results, bridge.FetchResult{
+			ConnName:   ws.ConnName,
+			ConnAbbr:   ws.ConnAbbr,
+			ConnColor:  ws.ConnAbbrColor,
+			Workspaces: []bridge.RawWorkspace{ws},
+		})
+	}
+	// Group all workspaces by connection
+	byConn := make(map[string]*bridge.FetchResult)
+	for _, ws := range raw {
+		if _, ok := byConn[ws.ConnName]; !ok {
+			byConn[ws.ConnName] = &bridge.FetchResult{
+				ConnName:  ws.ConnName,
+				ConnAbbr:  ws.ConnAbbr,
+				ConnColor: ws.ConnAbbrColor,
+			}
+		}
+		fr := byConn[ws.ConnName]
+		fr.Workspaces = append(fr.Workspaces, ws)
+	}
+	results = make([]bridge.FetchResult, 0, len(byConn))
+	for _, fr := range byConn {
+		results = append(results, *fr)
+	}
+	return s.ApplyResults(results)
+}
+
 // Snapshot returns a copy of the current fleet snapshot.
-// Safe for the caller to use concurrently with ApplyRaw.
 func (s *Store) Snapshot() protocol.FleetSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return copySnapshot(s.snapshot)
 }
 
-// copySnapshot deep-copies a FleetSnapshot so callers don't
-// share the internal slice headers.
 func copySnapshot(src *protocol.FleetSnapshot) protocol.FleetSnapshot {
 	dst := *src
 	dst.Machines = make([]protocol.MachineInfo, len(src.Machines))
@@ -152,10 +236,6 @@ func coalesce(ss ...string) string {
 	return ""
 }
 
-// snapshotEqual returns true if two snapshots have the same agent state.
-// Ignores Seq, UpdatedAt (top-level), and per-agent UpdatedAt
-// because they are set by the collector on every cycle and do not
-// represent a semantic state change.
 func snapshotEqual(a, b *protocol.FleetSnapshot) bool {
 	if a == nil || b == nil {
 		return false
@@ -166,11 +246,20 @@ func snapshotEqual(a, b *protocol.FleetSnapshot) bool {
 	if len(a.Machines) != len(b.Machines) {
 		return false
 	}
+	for i := range a.Machines {
+		if a.Machines[i].Name != b.Machines[i].Name ||
+			a.Machines[i].Abbr != b.Machines[i].Abbr ||
+			a.Machines[i].Color != b.Machines[i].Color ||
+			a.Machines[i].Health != b.Machines[i].Health ||
+			a.Machines[i].LastError != b.Machines[i].LastError {
+			return false
+		}
+		// LastSeenAt and config-only fields are excluded from comparison
+	}
 	if a.Stats != b.Stats {
 		return false
 	}
 	for i := range a.Agents {
-		// Compare all fields except UpdatedAt
 		if a.Agents[i].ID != b.Agents[i].ID ||
 			a.Agents[i].Machine != b.Agents[i].Machine ||
 			a.Agents[i].Agent != b.Agents[i].Agent ||

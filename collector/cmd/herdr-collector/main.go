@@ -27,6 +27,10 @@ var (
 	pub     *publisher.Publisher
 	natsSrv *natsserver.Server
 	tunnels []*tunnel.Tunnel
+
+	// Per-connection backoff state
+	failCount  = make(map[string]int)
+	lastHealth = make(map[string]string) // "online" or "offline" per machine
 )
 
 func main() {
@@ -161,22 +165,71 @@ func runMain(cmd *cobra.Command, args []string) error {
 }
 
 func refreshAndPublish() {
-	raw := br.FetchAll()
-	if len(raw) == 0 {
-		log.Warn().Msg("no herdr data fetched, publishing empty snapshot")
+	results := br.FetchAll()
+
+	// Backoff + health transition logging
+	anyOnline := false
+	for i := range results {
+		r := &results[i]
+		if r.Err == nil {
+			failCount[r.ConnName] = 0
+			anyOnline = true
+			if lastHealth[r.ConnName] == "offline" {
+				log.Info().Str("conn", r.ConnName).Msg("machine back online")
+			}
+			lastHealth[r.ConnName] = "online"
+		} else {
+			failCount[r.ConnName]++
+			// Exponential backoff: skip every Nth tick
+			// fail>0:  skip 0 ticks, fail>1: skip 1, fail>2: skip 3, fail>3: skip 7...
+			backoffTicks := (1 << min(failCount[r.ConnName], 5)) - 1 // 1, 3, 7, 15, 31
+			if failCount[r.ConnName] > 1 && (failCount[r.ConnName]-1)%backoffTicks != 0 {
+				continue // skip this tick
+			}
+			if lastHealth[r.ConnName] != "offline" {
+				log.Warn().
+					Str("conn", r.ConnName).
+					Int("fail_count", failCount[r.ConnName]).
+					Err(r.Err).
+					Msg("machine went offline, will retry with backoff")
+			}
+			lastHealth[r.ConnName] = "offline"
+		}
 	}
-	changed := store.ApplyRaw(raw)
+
+	changed := store.ApplyResults(results)
 	snap := store.Snapshot()
 	if err := pub.PublishSnapshot(&snap); err != nil {
 		log.Error().Err(err).Msg("snapshot publish failed")
 	}
 	if changed {
+		online := 0
+		offline := 0
+		for _, m := range snap.Machines {
+			if m.Health == "offline" {
+				offline++
+			} else {
+				online++
+			}
+		}
 		log.Info().
 			Uint64("seq", snap.Seq).
 			Int("agents", len(snap.Agents)).
 			Int("machines", len(snap.Machines)).
+			Int("online", online).
+			Int("offline", offline).
 			Msg("snapshot published")
 	}
+	if !anyOnline && len(results) > 0 {
+		log.Warn().Int("machines", len(results)).Msg("all machines offline")
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // ── Logger init ───────────────────────────────────────────

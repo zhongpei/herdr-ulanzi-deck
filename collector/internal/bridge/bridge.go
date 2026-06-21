@@ -1,10 +1,13 @@
-// Package bridge merges herdr data from multiple connections into a
-// unified raw workspace list. The fleet store converts this to FleetSnapshot.
+// Package bridge merges herdr data from multiple connections.
+// FetchAll fetches from all connections concurrently with per-connection
+// timeout, so a single bad connection doesn't block the global refresh.
 package bridge
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/herdr-deck/herdrdeck/collector/internal/herdrclient"
 	"github.com/rs/zerolog/log"
@@ -19,7 +22,6 @@ type ConnRef struct {
 }
 
 // RawWorkspace is a workspace with agents enriched with connection metadata.
-// Internal type: fleet.Store converts this to protocol.FleetSnapshot.
 type RawWorkspace struct {
 	ConnName      string
 	ConnAbbr      string
@@ -40,12 +42,21 @@ type RawAgent struct {
 	TabID       string
 	Agent       string
 	Name        string
-	Status      string // raw status string from herdr
+	Status      string
 	Focused     bool
 	TabLabel    string
 }
 
-// Bridge manages a pool of herdr connections and merges their data.
+// FetchResult holds the result of fetching a single connection.
+type FetchResult struct {
+	ConnName   string
+	ConnAbbr   string
+	ConnColor  string
+	Workspaces []RawWorkspace
+	Err        error
+}
+
+// Bridge manages a pool of herdr connections.
 type Bridge struct {
 	connections []ConnRef
 }
@@ -62,40 +73,60 @@ func (b *Bridge) AddConnection(name, abbr, color string, client *herdrclient.Cli
 	})
 }
 
-// FetchAll queries all connections and returns merged raw workspace data.
-func (b *Bridge) FetchAll() []RawWorkspace {
-	var all []RawWorkspace
+// Connections returns a copy of the connection list. Used by the collector
+// to track machine metadata even when a connection fails.
+func (b *Bridge) Connections() []ConnRef {
+	out := make([]ConnRef, len(b.connections))
+	copy(out, b.connections)
+	return out
+}
+
+// FetchAll fetches ALL connections concurrently with a 5s timeout per
+// connection. Returns one FetchResult per connection — failed connections
+// carry the error instead of being silently dropped.
+func (b *Bridge) FetchAll() []FetchResult {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ch := make(chan FetchResult, len(b.connections))
 	for _, conn := range b.connections {
-		workspaces, agents, err := fetchConn(conn)
-		if err != nil {
-			log.Error().Err(err).Str("conn", conn.Name).Msg("fetch failed for connection")
-			continue
-		}
-		agentMap := make(map[string][]RawAgent)
-		for _, a := range agents {
-			wid := a.WorkspaceID
-			agentMap[wid] = append(agentMap[wid], a)
-		}
-		for _, ws := range workspaces {
-			label := ws.Label
-			if label == "" {
-				label = fmt.Sprintf("ws-%d", ws.Number)
+		go func(c ConnRef) {
+			result := FetchResult{
+				ConnName:  c.Name,
+				ConnAbbr:  c.Abbr,
+				ConnColor: c.Color,
 			}
-			all = append(all, RawWorkspace{
-				ConnName:      conn.Name,
-				ConnAbbr:      conn.Abbr,
-				ConnAbbrColor: conn.Color,
-				WorkspaceID:   ws.WorkspaceID,
-				Label:         label,
-				Number:        ws.Number,
-				AgentStatus:   ws.AgentStatus,
-				TabCount:      ws.TabCount,
-				PaneCount:     ws.PaneCount,
-				Agents:        agentMap[ws.WorkspaceID],
-			})
+			ws, agents, err := fetchConn(c, ctx)
+			if err != nil {
+				result.Err = err
+			} else {
+				result.Workspaces = merge(c, ws, agents)
+			}
+			ch <- result
+		}(conn)
+	}
+
+	results := make([]FetchResult, 0, len(b.connections))
+	for i := 0; i < len(b.connections); i++ {
+		select {
+		case r := <-ch:
+			results = append(results, r)
+		case <-ctx.Done():
+			// Timeout — add failure results for remaining connections
+			for _, conn := range b.connections {
+				if !containsResult(results, conn.Name) {
+					results = append(results, FetchResult{
+						ConnName: conn.Name,
+						ConnAbbr: conn.Abbr,
+						ConnColor: conn.Color,
+						Err:      ctx.Err(),
+					})
+				}
+			}
+			return results
 		}
 	}
-	return all
+	return results
 }
 
 // FocusAgent sends an agent.focus command to the matching connection.
@@ -113,9 +144,46 @@ func (b *Bridge) FocusAgent(connName, paneID string) {
 	}
 }
 
+// ─── helpers ────────────────────────────────────────────────
+
+func containsResult(results []FetchResult, name string) bool {
+	for _, r := range results {
+		if r.ConnName == name {
+			return true
+		}
+	}
+	return false
+}
+
+func merge(c ConnRef, ws []wsInfo, agents []RawAgent) []RawWorkspace {
+	agentMap := make(map[string][]RawAgent)
+	for _, a := range agents {
+		agentMap[a.WorkspaceID] = append(agentMap[a.WorkspaceID], a)
+	}
+	var workspaces []RawWorkspace
+	for _, w := range ws {
+		label := w.Label
+		if label == "" {
+			label = fmt.Sprintf("ws-%d", w.Number)
+		}
+		workspaces = append(workspaces, RawWorkspace{
+			ConnName:      c.Name,
+			ConnAbbr:      c.Abbr,
+			ConnAbbrColor: c.Color,
+			WorkspaceID:   w.WorkspaceID,
+			Label:         label,
+			Number:        w.Number,
+			AgentStatus:   w.AgentStatus,
+			TabCount:      w.TabCount,
+			PaneCount:     w.PaneCount,
+			Agents:        agentMap[w.WorkspaceID],
+		})
+	}
+	return workspaces
+}
+
 // ─── internal fetch ────────────────────────────────────────
 
-// wsInfo mirrors the JSON structure from herdr workspace.list.
 type wsInfo struct {
 	WorkspaceID string `json:"workspace_id"`
 	Label       string `json:"label"`
@@ -127,7 +195,6 @@ type wsInfo struct {
 	PaneCount   int    `json:"pane_count"`
 }
 
-// agInfo mirrors the JSON structure from herdr agent.list.
 type agInfo struct {
 	PaneID      string            `json:"pane_id"`
 	TerminalID  string            `json:"terminal_id"`
@@ -141,49 +208,67 @@ type agInfo struct {
 	Revision    int               `json:"revision"`
 }
 
-func fetchConn(conn ConnRef) ([]wsInfo, []RawAgent, error) {
-	wsRaw, err := conn.Client.ListWorkspaces()
-	if err != nil {
-		return nil, nil, fmt.Errorf("workspace.list: %w", err)
+func fetchConn(conn ConnRef, ctx context.Context) ([]wsInfo, []RawAgent, error) {
+	type listCall struct {
+		name string
+		fn   func() ([]byte, error)
 	}
-	agRaw, err := conn.Client.ListAgents()
-	if err != nil {
-		return nil, nil, fmt.Errorf("agent.list: %w", err)
-	}
-	tabRaw, err := conn.Client.ListTabs()
-	if err != nil {
-		return nil, nil, fmt.Errorf("tab.list: %w", err)
+
+	calls := []struct {
+		name string
+		fn   func() (json.RawMessage, error)
+	}{
+		{"workspace.list", conn.Client.ListWorkspaces},
+		{"agent.list", conn.Client.ListAgents},
+		{"tab.list", conn.Client.ListTabs},
 	}
 
 	var wsObj struct {
 		Workspaces []wsInfo `json:"workspaces"`
 	}
-	if err := json.Unmarshal(wsRaw, &wsObj); err != nil {
-		return nil, nil, fmt.Errorf("parse workspaces: %w", err)
-	}
-
 	var agObj struct {
 		Agents []agInfo `json:"agents"`
 	}
-	if err := json.Unmarshal(agRaw, &agObj); err != nil {
-		return nil, nil, fmt.Errorf("parse agents: %w", err)
-	}
-
 	var tabObj struct {
 		Tabs []struct {
 			TabID string `json:"tab_id"`
 			Label string `json:"label"`
 		} `json:"tabs"`
 	}
-	if err := json.Unmarshal(tabRaw, &tabObj); err != nil {
-		return nil, nil, fmt.Errorf("parse tabs: %w", err)
+
+	for _, call := range calls {
+		select {
+		case <-ctx.Done():
+			return nil, nil, fmt.Errorf("%s: %w", call.name, ctx.Err())
+		default:
+		}
+
+		data, err := call.fn()
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %w", call.name, err)
+		}
+
+		switch call.name {
+		case "workspace.list":
+			if err := json.Unmarshal(data, &wsObj); err != nil {
+				return nil, nil, fmt.Errorf("parse workspaces: %w", err)
+			}
+		case "agent.list":
+			if err := json.Unmarshal(data, &agObj); err != nil {
+				return nil, nil, fmt.Errorf("parse agents: %w", err)
+			}
+		case "tab.list":
+			if err := json.Unmarshal(data, &tabObj); err != nil {
+				return nil, nil, fmt.Errorf("parse tabs: %w", err)
+			}
+		}
 	}
+
 	tabLabels := make(map[string]string, len(tabObj.Tabs))
 	for _, t := range tabObj.Tabs {
 		tabLabels[t.TabID] = t.Label
 	}
 
-	// Convert to RawAgent and enrich with tab labels
 	rawAgents := make([]RawAgent, len(agObj.Agents))
 	for i, a := range agObj.Agents {
 		rawAgents[i] = RawAgent{

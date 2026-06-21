@@ -3,9 +3,12 @@ package protocol
 // MachineInfo carries connection identity metadata for a single machine
 // that collector is pulling state from.
 type MachineInfo struct {
-	Name  string `json:"name"`  // Internal identifier, e.g. "local", "dev-server"
-	Abbr  string `json:"abbr"`  // Abbreviation shown on K12, e.g. "LCL", "DEV"
-	Color string `json:"color"` // Machine color for K12 background, e.g. "#4ADE80"
+	Name       string `json:"name"`        // Internal identifier
+	Abbr       string `json:"abbr"`        // Abbreviation shown on K12
+	Color      string `json:"color"`       // Machine color for K12 background
+	Health     string `json:"health"`      // "online", "offline"
+	LastError  string `json:"last_error,omitempty"`
+	LastSeenAt string `json:"last_seen_at,omitempty"`
 }
 
 // AgentState is a flat, machine-enriched agent record sent from collector to
