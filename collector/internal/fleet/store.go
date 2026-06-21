@@ -17,11 +17,11 @@ import (
 
 // Store holds the authoritative fleet state.
 type Store struct {
-	mu        sync.RWMutex
-	snapshot  *protocol.FleetSnapshot
-	machines  map[string]*machineState
-	order     []string // insertion order of machine keys, for deterministic output
-	seq       uint64
+	mu       sync.RWMutex
+	snapshot *protocol.FleetSnapshot
+	machines map[string]*machineState
+	order    []string // insertion order of machine keys, for deterministic output
+	seq      uint64
 }
 
 type machineState struct {
@@ -158,24 +158,10 @@ func (s *Store) ApplyResults(results []bridge.FetchResult) bool {
 }
 
 // ApplyRaw is the old API kept for backward compat with tests.
-// Calls ApplyResults with all-successful FetchResults.
 func (s *Store) ApplyRaw(raw []bridge.RawWorkspace) bool {
-	results := make([]bridge.FetchResult, 0, len(raw))
-	seen := make(map[string]bool)
-	for _, ws := range raw {
-		if seen[ws.ConnName] {
-			continue
-		}
-		seen[ws.ConnName] = true
-		results = append(results, bridge.FetchResult{
-			ConnName:   ws.ConnName,
-			ConnAbbr:   ws.ConnAbbr,
-			ConnColor:  ws.ConnAbbrColor,
-			Workspaces: []bridge.RawWorkspace{ws},
-		})
-	}
-	// Group all workspaces by connection
+	// Preserve raw order when building FetchResults.
 	byConn := make(map[string]*bridge.FetchResult)
+	var order []string
 	for _, ws := range raw {
 		if _, ok := byConn[ws.ConnName]; !ok {
 			byConn[ws.ConnName] = &bridge.FetchResult{
@@ -183,13 +169,13 @@ func (s *Store) ApplyRaw(raw []bridge.RawWorkspace) bool {
 				ConnAbbr:  ws.ConnAbbr,
 				ConnColor: ws.ConnAbbrColor,
 			}
+			order = append(order, ws.ConnName)
 		}
-		fr := byConn[ws.ConnName]
-		fr.Workspaces = append(fr.Workspaces, ws)
+		byConn[ws.ConnName].Workspaces = append(byConn[ws.ConnName].Workspaces, ws)
 	}
-	results = make([]bridge.FetchResult, 0, len(byConn))
-	for _, fr := range byConn {
-		results = append(results, *fr)
+	results := make([]bridge.FetchResult, 0, len(order))
+	for _, name := range order {
+		results = append(results, *byConn[name])
 	}
 	return s.ApplyResults(results)
 }

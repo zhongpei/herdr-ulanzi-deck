@@ -29,8 +29,8 @@ var (
 	tunnels []*tunnel.Tunnel
 
 	// Per-connection backoff state
-	failCount  = make(map[string]int)
-	lastHealth = make(map[string]string) // "online" or "offline" per machine
+	skipRemaining = make(map[string]int) // ticks to skip before retry
+	lastHealth    = make(map[string]string)
 )
 
 func main() {
@@ -172,24 +172,27 @@ func refreshAndPublish() {
 	for i := range results {
 		r := &results[i]
 		if r.Err == nil {
-			failCount[r.ConnName] = 0
+			skipRemaining[r.ConnName] = 0
 			anyOnline = true
 			if lastHealth[r.ConnName] == "offline" {
 				log.Info().Str("conn", r.ConnName).Msg("machine back online")
 			}
 			lastHealth[r.ConnName] = "online"
 		} else {
-			failCount[r.ConnName]++
-			// Exponential backoff: skip every Nth tick
-			// fail>0:  skip 0 ticks, fail>1: skip 1, fail>2: skip 3, fail>3: skip 7...
-			backoffTicks := (1 << min(failCount[r.ConnName], 5)) - 1 // 1, 3, 7, 15, 31
-			if failCount[r.ConnName] > 1 && (failCount[r.ConnName]-1)%backoffTicks != 0 {
+			skip := skipRemaining[r.ConnName]
+			if skip > 0 {
+				skipRemaining[r.ConnName] = skip - 1
 				continue // skip this tick
+			}
+			// First failure or retry window expired — set backoff
+			skipRemaining[r.ConnName] = skipRemaining[r.ConnName] + 2 // 2, 4, 6, ... ticks
+			if skipRemaining[r.ConnName] > 60 {
+				skipRemaining[r.ConnName] = 60
 			}
 			if lastHealth[r.ConnName] != "offline" {
 				log.Warn().
 					Str("conn", r.ConnName).
-					Int("fail_count", failCount[r.ConnName]).
+					Int("backoff_ticks", skipRemaining[r.ConnName]).
 					Err(r.Err).
 					Msg("machine went offline, will retry with backoff")
 			}
