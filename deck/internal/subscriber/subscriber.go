@@ -4,6 +4,8 @@ package subscriber
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/herdr-deck/herdrdeck/protocol"
@@ -12,22 +14,41 @@ import (
 
 // Subscriber manages NATS subscriptions for the deck process.
 type Subscriber struct {
-	nc       *nats.Conn
-	snapshotCh chan *protocol.FleetSnapshot
+	nc          *nats.Conn
+	snapshotCh  chan *protocol.FleetSnapshot
 	heartbeatCh chan time.Time
 }
 
 // New connects to a NATS server and starts subscriptions.
-// With RetryOnFailedConnect, it returns a valid Subscriber even when NATS
-// is not yet reachable — subscriptions are queued until connected.
+// Retries the initial connection so deck can start before collector/NATS.
 func New(natsAddr string) (*Subscriber, error) {
-	nc, err := nats.Connect(natsAddr,
-		nats.RetryOnFailedConnect(true),
-		nats.ReconnectWait(2*time.Second),
-		nats.MaxReconnects(-1),
-	)
-	if err != nil {
-		return nil, err // still can fail for invalid addr format
+	var nc *nats.Conn
+	var err error
+
+	// Retry up to 30s — allows deck to start before collector/NATS.
+	for i := 0; i < 30; i++ {
+		nc, err = nats.Connect(natsAddr,
+			nats.RetryOnFailedConnect(true),
+			nats.ReconnectWait(2*time.Second),
+			nats.MaxReconnects(-1),
+			nats.Timeout(1*time.Second),
+		)
+		if err == nil {
+			break
+		}
+		// Non-retryable errors (e.g. invalid URL format) — fail immediately.
+		// Retryable errors (timeout, connection refused) — keep trying.
+		if strings.Contains(err.Error(), "invalid") ||
+			strings.Contains(err.Error(), "format") ||
+			strings.Contains(err.Error(), "no servers") && i > 5 {
+			return nil, fmt.Errorf("connect: %w", err)
+		}
+		if i < 29 {
+			time.Sleep(1 * time.Second)
+		}
+	}
+	if err != nil || nc == nil {
+		return nil, fmt.Errorf("connect after retry: %w", err)
 	}
 
 	s := &Subscriber{

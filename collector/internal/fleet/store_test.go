@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"testing"
+	"time"
 
 	"github.com/herdr-deck/herdrdeck/collector/internal/bridge"
 	"github.com/herdr-deck/herdrdeck/protocol"
@@ -103,6 +104,23 @@ func TestStoreUnchangedDetection(t *testing.T) {
 	changed = s.ApplyRaw(raw)
 	if changed {
 		t.Error("same data should report unchanged")
+	}
+}
+
+func TestStoreUnchangedAcrossTime(t *testing.T) {
+	// Same raw data applied with a time gap should produce changed=false
+	// when only UpdatedAt differs (the bug: old code compared UpdatedAt).
+	s := NewStore()
+	raw := buildTestRaw()
+
+	s.ApplyRaw(raw)
+
+	// Simulate a time delay
+	time.Sleep(2 * time.Second)
+
+	changed := s.ApplyRaw(raw)
+	if changed {
+		t.Error("same data after time delay should report unchanged")
 	}
 }
 
