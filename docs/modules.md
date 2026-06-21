@@ -54,8 +54,9 @@ src/
 
 ```
 scripts/
-├── deploy-go.sh                 Kill old → create stub plugin → build Go binary → start
-└── deploy-and-run.sh            Kill old → sync JS source → start Node.js plugin
+├── deploy-collector.sh          Build + start herdr-collector
+├── deploy-deck.sh               Build + start herdr-deck
+└── deploy-all.sh                Build + start both processes
 ```
 
 ---

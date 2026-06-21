@@ -63,8 +63,12 @@ cd go && make build
 # 或带调试日志
 ./build/herdrdeck -d
 
-# 全量部署脚本（杀旧进程、构建、启动）
-bash scripts/deploy-go.sh
+# 全量部署脚本
+bash scripts/deploy-all.sh
+
+# 或分别启动
+bash scripts/deploy-collector.sh
+bash scripts/deploy-deck.sh
 ```
 
 ### 依赖（Go）
@@ -159,16 +163,14 @@ cp connections.sample.json ~/.config/herdr-deck/connections.json
 
 ```bash
 # Go 测试
-cd go && make test
+cd collector && make test
 
 # 构建并运行
-cd go && make run
+cd collector && make run
+cd deck && make run
 
-# 部署 Go 版本
-bash scripts/deploy-go.sh
-
-# 部署 JS 版本
-bash scripts/deploy-and-run.sh
+# 部署全部
+bash scripts/deploy-all.sh
 ```
 
 详见 [docs/development-guide.md](./docs/development-guide.md)。

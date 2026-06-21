@@ -341,5 +341,6 @@ SVG example:
 
 | File | Description |
 |------|-------------|
-| `scripts/deploy-go.sh` | Kill old processes → create stub plugin → build Go binary → start |
-| `scripts/deploy-and-run.sh` | Kill old processes → sync JS source → start Node.js plugin |
+| `scripts/deploy-collector.sh` | Build + start herdr-collector |
+| `scripts/deploy-deck.sh` | Build + start herdr-deck |
+| `scripts/deploy-all.sh` | Build + start both collector and deck |
