@@ -277,19 +277,23 @@ func TestRenderStatsKey_SpaceBlocks(t *testing.T) {
 		CPUPercent:    23.5,
 		MemoryPercent: 45.2,
 	}))
-	if !strings.Contains(svg, "main-pro") {
-		t.Error("should show space label 'main-proj'")
+	// List layout: space labels not truncated
+	if !strings.Contains(svg, "main-proj") {
+		t.Error("should show full space label 'main-proj'")
+	}
+	if !strings.Contains(svg, "web-app") {
+		t.Error("should show space label 'web-app'")
 	}
 	// Should show machine abbreviations
 	if !strings.Contains(svg, "LCL") || !strings.Contains(svg, "DEV") {
 		t.Error("should show machine abbreviations LCL and DEV")
 	}
-	// Status uses single-letter badges: B/D/W/I
-	if !strings.Contains(svg, ">D<") && !strings.Contains(svg, ">I<") {
-		t.Error("should show status badges")
+	// Status badges (non-zero only)
+	if !strings.Contains(svg, ">D<") || !strings.Contains(svg, ">I<") {
+		t.Error("should show Done and Idle badges")
 	}
 	if !strings.Contains(svg, ">B<") {
-		t.Error("should show blocked badge (DEV machine)")
+		t.Error("should show Blocked badge")
 	}
 }
 
@@ -297,21 +301,16 @@ func TestRenderStatsKey_SpaceBlocks(t *testing.T) {
 func TestRenderStatsKey_ZeroHidden(t *testing.T) {
 	r := New()
 	svg := decodeSVG(r.RenderStatsKey(viewmodel.StatsData{
-		Stats: protocol.AgentStats{
-			Done:    1,
-			Idle:    0,
-			Working: 0,
-			Blocked: 0,
-			Unknown: 0,
-		},
-		CPUPercent:    23.5,
-		MemoryPercent: 45.2,
+		Stats: protocol.AgentStats{Done: 1, Idle: 0, Working: 0, Blocked: 0, Unknown: 0},
+		CPUPercent: 23.5, MemoryPercent: 45.2,
 	}))
+	// Top summary should show D:1 (Done count)
 	if !strings.Contains(svg, ">1<") {
 		t.Error("should show D count 1")
 	}
-	if strings.Contains(svg, ">I<") {
-		t.Error("should skip I0, no I label")
+	// No I0 — idle is 0, should not appear
+	if strings.Contains(svg, "I:0") || strings.Contains(svg, ">I<") {
+		t.Error("should not show zero count status")
 	}
 }
 
@@ -338,11 +337,12 @@ func TestRenderStatsKey_CPUValue(t *testing.T) {
 		t.Error("K14 should show MEM 72%")
 	}
 	// CPU value at x=60, MEM value at x=160 (SVG direct layout)
-	if !strings.Contains(svg, `x="60"`) {
-		t.Error("CPU value should be at x=60")
+	// CPU value at x=50, MEM value at x=140 (list layout)
+	if !strings.Contains(svg, `x="50"`) {
+		t.Error("CPU value should be at x=50")
 	}
-	if !strings.Contains(svg, `x="160"`) {
-		t.Error("MEM value should be at x=160")
+	if !strings.Contains(svg, `x="140"`) {
+		t.Error("MEM value should be at x=140")
 	}
 }
 
