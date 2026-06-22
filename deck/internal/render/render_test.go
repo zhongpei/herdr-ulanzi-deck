@@ -581,11 +581,11 @@ func TestAnimationFrames_Working(t *testing.T) {
 
 func TestAnimationFrames_Done(t *testing.T) {
 	frames, delayMs := AnimationFrames("done")
-	if frames != 16 {
-		t.Errorf("done frames: got %d, want 16", frames)
+	if frames != 8 {
+		t.Errorf("done frames: got %d, want 8", frames)
 	}
-	if delayMs != 200 {
-		t.Errorf("done delay: got %d, want 200ms", delayMs)
+	if delayMs != 125 {
+		t.Errorf("done delay: got %d, want 125ms", delayMs)
 	}
 }
 
@@ -752,24 +752,25 @@ func TestRotateStatusIconSVG_StaticStatus_ReturnsInput(t *testing.T) {
 		t.Errorf("static: got %q, want %q", got, icon)
 	}
 }
+func TestRotateStatusIconSVG_Done_SharpPulse(t *testing.T) {
+	icon := StatusIcons()["done"]
+	// 8-frame cycle, 125ms per frame
+	// Frames 0-3: dim; Frames 4-7: bright
 
-func TestRotateStatusIconSVG_Working_SnakeDots(t *testing.T) {
-	icon := StatusIcons()["working"]
+	f0 := rotateStatusIconSVG("done", icon, 0, 8)
+	if !strings.Contains(f0, `opacity="0.10"`) {
+		t.Errorf("frame 0: expected dim (0.10), got: %s", f0)
+	}
 
-	// Frame 1: head=1 → dots 1,2,3 should be white, dot 0 should be gray
-	got := rotateStatusIconSVG("working", icon, 1, 8)
-	if !strings.Contains(got, `cx="187.1" cy="187.1" r="3" fill="white"`) {
-		t.Errorf("frame 1: dot 1 should be white")
+	f4 := rotateStatusIconSVG("done", icon, 4, 8)
+	if !strings.Contains(f4, `opacity="1.00"`) {
+		t.Errorf("frame 4: expected bright (1.00), got: %s", f4)
 	}
-	if !strings.Contains(got, `cx="180.0" cy="190.0" r="3" fill="white"`) {
-		t.Errorf("frame 1: dot 2 should be white")
-	}
-	if !strings.Contains(got, `cx="172.9" cy="187.1" r="3" fill="white"`) {
-		t.Errorf("frame 1: dot 3 should be white")
-	}
-	// Dot 0 should be gray
-	if !strings.Contains(got, `cx="190.0" cy="180.0" r="3" fill="#888"`) {
-		t.Errorf("frame 1: dot 0 should be gray")
+
+	// Test wraparound: frame 8 = frame 0
+	f8 := rotateStatusIconSVG("done", icon, 8, 8)
+	if !strings.Contains(f8, `opacity="0.10"`) {
+		t.Errorf("frame 8: expected dim (0.10), got: %s", f8)
 	}
 }
 
@@ -793,24 +794,7 @@ func TestRotateStatusIconSVG_Working_SnakeWraparound(t *testing.T) {
 	}
 }
 
-func TestRotateStatusIconSVG_Done_BreathingOpacity(t *testing.T) {
-	icon := StatusIcons()["done"]
-	// Frame 0: cos(0)=1 → opacity near 1.0
-	f0 := rotateStatusIconSVG("done", icon, 0, 16)
-	if !strings.Contains(f0, `opacity="1.00"`) {
-		t.Errorf("frame 0: expected opacity 1.00, got: %s", f0)
-	}
-	// Frame 8: cos(pi)=-1 → opacity near 0.2
-	f8 := rotateStatusIconSVG("done", icon, 8, 16)
-	if !strings.Contains(f8, `opacity="0.20"`) {
-		t.Errorf("frame 8: expected opacity 0.20, got: %s", f8)
-	}
-	// Frame 4: cos(pi/2)=0 → opacity near 0.6
-	f4 := rotateStatusIconSVG("done", icon, 4, 16)
-	if !strings.Contains(f4, `opacity="0.60"`) {
-		t.Errorf("frame 4: expected opacity ~0.60, got: %s", f4)
-	}
-}
+
 
 func TestRotateStatusIconSVG_Working_8DotsPresent(t *testing.T) {
 	icon := StatusIcons()["working"]

@@ -171,7 +171,7 @@ func AnimationFrames(status string) (frames int, delayMs int) {
 	case "working":
 		return 8, 120
 	case "done":
-		return 16, 200 // 16 frames × 200ms = 3.2s breathing cycle
+		return 8, 125 // 8 frames × 125ms = 1s pulse cycle
 	default:
 		return 1, 0
 	}
@@ -239,11 +239,12 @@ func rotateStatusIconSVG(status, icon string, frame, totalFrames int) string {
 		return sb.String()
 
 	case "done":
-		// Breathing circle: sine-wave opacity 0.2↔1.0
-		// 16 frames × 200ms = 3.2s full breath cycle
-		phase := float64(frame) * 2.0 * math.Pi / float64(totalFrames)
-		opacity := 0.2 + 0.8*((math.Cos(phase)+1.0)/2.0)
-		return fmt.Sprintf(`<circle cx="180" cy="180" r="10" fill="white" opacity="%.2f"/>`, opacity)
+		// Sharp pulse: dim (0.10), brief bright (1.00) flash
+		// 8 frames × 125ms = 1s cycle — visible like notification LED
+		if frame%8 < 4 {
+			return `<circle cx="180" cy="180" r="10" fill="white" opacity="0.10"/>`
+		}
+		return `<circle cx="180" cy="180" r="10" fill="white" opacity="1.00"/>`
 
 	default:
 		return icon
