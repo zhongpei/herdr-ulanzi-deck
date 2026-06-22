@@ -56,8 +56,8 @@ func AgentIcons() map[string]string {
 // Icons inlined directly by the caller — no <text> wrapper.
 func StatusIcons() map[string]string {
 	return map[string]string{
-		// ✓ checkmark — two segments forming a check
-		"done": `<polyline points="168,180 176,188 192,170" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`,
+		// ● breathing circle — pulsing opacity for notification effect
+		"done": `<circle cx="180" cy="180" r="10" fill="white"/>`,
 		// ‖ pause — two vertical bars
 		"idle": `<line x1="174" y1="170" x2="174" y2="194" stroke="white" stroke-width="4" stroke-linecap="round"/>
 <line x1="186" y1="170" x2="186" y2="194" stroke="white" stroke-width="4" stroke-linecap="round"/>`,

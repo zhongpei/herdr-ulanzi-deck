@@ -170,6 +170,8 @@ func AnimationFrames(status string) (frames int, delayMs int) {
 	switch status {
 	case "working":
 		return 8, 120
+	case "done":
+		return 16, 200 // 16 frames × 200ms = 3.2s breathing cycle
 	default:
 		return 1, 0
 	}
@@ -210,35 +212,42 @@ func rotateStatusIconSVG(status, icon string, frame, totalFrames int) string {
 	if totalFrames <= 1 {
 		return icon
 	}
-	if status != "working" {
+
+	switch status {
+	case "working":
+		type dot struct{ x, y float64 }
+		dots := []dot{
+			{190.0, 180.0}, {187.1, 187.1}, {180.0, 190.0}, {172.9, 187.1},
+			{170.0, 180.0}, {172.9, 172.9}, {180.0, 170.0}, {187.1, 172.9},
+		}
+
+		head := frame % totalFrames
+		var sb strings.Builder
+		for i, d := range dots {
+			dist := (i - head) % totalFrames
+			if dist < 0 {
+				dist += totalFrames
+			}
+			if dist < 3 {
+				sb.WriteString(fmt.Sprintf(`<circle cx="%.1f" cy="%.1f" r="3" fill="white"/>
+`, d.x, d.y))
+			} else {
+				sb.WriteString(fmt.Sprintf(`<circle cx="%.1f" cy="%.1f" r="3" fill="#888" opacity="0.3"/>
+`, d.x, d.y))
+			}
+		}
+		return sb.String()
+
+	case "done":
+		// Breathing circle: sine-wave opacity 0.2↔1.0
+		// 16 frames × 200ms = 3.2s full breath cycle
+		phase := float64(frame) * 2.0 * math.Pi / float64(totalFrames)
+		opacity := 0.2 + 0.8*((math.Cos(phase)+1.0)/2.0)
+		return fmt.Sprintf(`<circle cx="180" cy="180" r="10" fill="white" opacity="%.2f"/>`, opacity)
+
+	default:
 		return icon
 	}
-
-	// 8 dots on radius 10, center (180, 180), at 45° increments.
-	// 3 consecutive white dots advance 1 position per frame.
-	type dot struct{ x, y float64 }
-	dots := []dot{
-		{190.0, 180.0}, {187.1, 187.1}, {180.0, 190.0}, {172.9, 187.1},
-		{170.0, 180.0}, {172.9, 172.9}, {180.0, 170.0}, {187.1, 172.9},
-	}
-
-	head := frame % totalFrames
-	var sb strings.Builder
-	for i, d := range dots {
-		// White if within 3 positions after head (wrapping around)
-		dist := (i - head) % totalFrames
-		if dist < 0 {
-			dist += totalFrames
-		}
-		if dist < 3 {
-			sb.WriteString(fmt.Sprintf(`<circle cx="%.1f" cy="%.1f" r="3" fill="white"/>
-`, d.x, d.y))
-		} else {
-			sb.WriteString(fmt.Sprintf(`<circle cx="%.1f" cy="%.1f" r="3" fill="#888" opacity="0.3"/>
-`, d.x, d.y))
-		}
-	}
-	return sb.String()
 }
 
 // rotatePoint rotates point (x, y) around center (cx, cy) by angleDeg degrees.

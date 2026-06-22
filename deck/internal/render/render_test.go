@@ -578,8 +578,19 @@ func TestAnimationFrames_Working(t *testing.T) {
 	}
 }
 
+
+func TestAnimationFrames_Done(t *testing.T) {
+	frames, delayMs := AnimationFrames("done")
+	if frames != 16 {
+		t.Errorf("done frames: got %d, want 16", frames)
+	}
+	if delayMs != 200 {
+		t.Errorf("done delay: got %d, want 200ms", delayMs)
+	}
+}
+
 func TestAnimationFrames_Static(t *testing.T) {
-	for _, st := range []string{"done", "idle", "blocked", "unknown", "offline"} {
+	for _, st := range []string{"idle", "blocked", "unknown", "offline"} {
 		frames, delayMs := AnimationFrames(st)
 		if frames != 1 {
 			t.Errorf("%s frames: got %d, want 1", st, frames)
@@ -641,7 +652,7 @@ func TestRenderAgentKeyFrames_Working_FramesDiffer(t *testing.T) {
 
 func TestRenderAgentKeyFrames_Static_Returns1Frame(t *testing.T) {
 	r := New()
-	for _, st := range []string{"done", "idle", "blocked", "unknown"} {
+	for _, st := range []string{"idle", "blocked", "unknown"} {
 		d := viewmodel.AgentKeyData{
 			KeyID: "0_0", Type: "agent", AgentType: "pi",
 			Alias: "agent-" + st, Status: st,
@@ -725,7 +736,7 @@ func TestRotateStatusIconSVG_Frame0_StartsWithSnake(t *testing.T) {
 }
 
 func TestRotateStatusIconSVG_NonWorking_Unchanged(t *testing.T) {
-	for _, st := range []string{"done", "idle", "blocked", "unknown"} {
+	for _, st := range []string{"idle", "blocked", "unknown"} {
 		icon := StatusIcons()[st]
 		got := rotateStatusIconSVG(st, icon, 0, 1)
 		if got != icon {
@@ -779,6 +790,25 @@ func TestRotateStatusIconSVG_Working_SnakeWraparound(t *testing.T) {
 	// Dot 5 should be gray
 	if !strings.Contains(got, `cx="172.9" cy="172.9" r="3" fill="#888"`) {
 		t.Errorf("frame 6: dot 5 should be gray")
+	}
+}
+
+func TestRotateStatusIconSVG_Done_BreathingOpacity(t *testing.T) {
+	icon := StatusIcons()["done"]
+	// Frame 0: cos(0)=1 → opacity near 1.0
+	f0 := rotateStatusIconSVG("done", icon, 0, 16)
+	if !strings.Contains(f0, `opacity="1.00"`) {
+		t.Errorf("frame 0: expected opacity 1.00, got: %s", f0)
+	}
+	// Frame 8: cos(pi)=-1 → opacity near 0.2
+	f8 := rotateStatusIconSVG("done", icon, 8, 16)
+	if !strings.Contains(f8, `opacity="0.20"`) {
+		t.Errorf("frame 8: expected opacity 0.20, got: %s", f8)
+	}
+	// Frame 4: cos(pi/2)=0 → opacity near 0.6
+	f4 := rotateStatusIconSVG("done", icon, 4, 16)
+	if !strings.Contains(f4, `opacity="0.60"`) {
+		t.Errorf("frame 4: expected opacity ~0.60, got: %s", f4)
 	}
 }
 
