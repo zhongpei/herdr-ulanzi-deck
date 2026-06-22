@@ -676,7 +676,9 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
   <text x="200" y="194" text-anchor="middle" fill="#888" font-family="sans-serif" font-size="10" font-weight="400">%s</text>
 `, pageText))
 
-	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">%s
+	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+  <rect width="400" height="200" rx="8" fill="#4A90D9"/>
+%s
 </svg>`, inner.String())
 	return toDataURI(svg)
 }
