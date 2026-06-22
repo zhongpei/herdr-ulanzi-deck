@@ -439,9 +439,9 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		memCol = "#555"
 	}
 
-	inner.WriteString(fmt.Sprintf(`  <text x="15" y="24" fill="white" font-family="sans-serif" font-size="16" font-weight="700">CPU</text>
-  <text x="50" y="24" fill="%s" font-family="sans-serif" font-size="18" font-weight="900">%s</text>
-  <text x="105" y="24" fill="white" font-family="sans-serif" font-size="16" font-weight="700">MEM</text>
+	inner.WriteString(fmt.Sprintf(`  <text x="15" y="24" fill="white" font-family="sans-serif" font-size="18" font-weight="700">CPU</text>
+  <text x="50" y="24" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
+  <text x="105" y="24" fill="white" font-family="sans-serif" font-size="18" font-weight="700">MEM</text>
   <text x="140" y="24" fill="%s" font-family="sans-serif" font-size="18" font-weight="900">%s</text>
 `, cpuCol, cpuPct, memCol, memPct))
 
@@ -462,8 +462,8 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		if item.count == 0 {
 			continue
 		}
-		inner.WriteString(fmt.Sprintf(`  <text x="%d" y="24" fill="%s" font-family="sans-serif" font-size="16" font-weight="900">%s</text>
-  <text x="%d" y="24" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
+		inner.WriteString(fmt.Sprintf(`  <text x="%d" y="24" fill="%s" font-family="sans-serif" font-size="18" font-weight="900">%s</text>
+  <text x="%d" y="24" fill="white" font-family="sans-serif" font-size="20" font-weight="900">%d</text>
 `, xPos, item.color, item.label, xPos+18, item.count))
 		xPos += 48
 	}
@@ -474,10 +474,10 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 	// ── Space list (row per space) ──
 	spaces := d.Spaces
 	if len(spaces) == 0 {
-		inner.WriteString(`  <text x="200" y="110" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="18" font-weight="400">---</text>`)
+		inner.WriteString(`  <text x="200" y="110" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="22" font-weight="400">---</text>`)
 	} else {
 		rowY := 48
-		rowH := 40
+		rowH := 48
 		maxRows := 4
 
 		for i := 0; i < maxRows && i < len(spaces); i++ {
@@ -488,7 +488,7 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 			if len(label) > 14 {
 				label = label[:14] + ".."
 			}
-			inner.WriteString(fmt.Sprintf(`  <text x="15" y="%d" fill="white" font-family="sans-serif" font-size="16" font-weight="700">%s</text>
+			inner.WriteString(fmt.Sprintf(`  <text x="15" y="%d" fill="white" font-family="sans-serif" font-size="18" font-weight="700">%s</text>
 `, rowY+16, escapeXML(label)))
 
 			// Machine entries
@@ -504,7 +504,7 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 					if mx >= mxEnd {
 						break
 					}
-					inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="#555" font-family="sans-serif" font-size="14" font-weight="400">|</text>
+					inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="#555" font-family="sans-serif" font-size="16" font-weight="400">|</text>
 `, mx-4, rowY+14))
 					mx += 6
 				}
@@ -515,8 +515,8 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 				}
 				// Colored square + abbreviation + total count
 				inner.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="4" height="14" rx="1" fill="%s"/>
-  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="12" font-weight="700">%s</text>
-  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="14" font-weight="900">%d</text>
+  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="14" font-weight="700">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="16" font-weight="900">%d</text>
 `, mx, rowY+3, macColor,
 					mx+8, rowY+14, macColor, mac.Abbr,
 					mx+8+len(mac.Abbr)*8+2, rowY+14, mac.Total))
@@ -538,10 +538,10 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 					if cnt == 0 {
 						continue
 					}
-					inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="11" font-weight="900">%s</text>
-  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="11" font-weight="400">%d</text>
+					inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="13" font-weight="900">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="13" font-weight="400">%d</text>
 `, badgeX, rowY+14, bo.color, bo.label, badgeX+14, rowY+14, cnt))
-					badgeX += 32
+					badgeX += 38
 				}
 				
 			}
