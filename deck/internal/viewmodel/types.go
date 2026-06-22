@@ -52,14 +52,31 @@ type NavSpaceData struct {
 	NextLabel    string `json:"nextLabel"`
 	Active       bool   `json:"active"`
 }
+// MachineStats holds per-machine agent counts within one space.
+type MachineStats struct {
+	Abbr   string `json:"abbr"`
+	Color  string `json:"color"`
+	Total  int    `json:"total"`
+	// Non-zero status counts: key=status string, value=count
+	// e.g. {"done":3, "idle":1, "working":1}
+	Stats map[string]int `json:"stats"`
+}
 
-// StatsData describes the K14 stats bar with optional system CPU/memory overlay.
+// SpaceStats holds the agent breakdown for one workspace label.
+type SpaceStats struct {
+	Label    string         `json:"label"`
+	Machines []MachineStats `json:"machines"`
+	Total    int            `json:"total"`
+}
+
+// StatsData describes the K14 stats bar with CPU/MEM and space breakdown.
 type StatsData struct {
 	KeyID         string              `json:"keyId"`
 	Type          string              `json:"type"`
 	Stats         protocol.AgentStats `json:"stats"`
 	CPUPercent    float64             `json:"cpuPercent"`
 	MemoryPercent float64             `json:"memPercent"`
+	Spaces        []SpaceStats        `json:"spaces,omitempty"`
 }
 
 // EmptyKeyData describes an unused key slot.

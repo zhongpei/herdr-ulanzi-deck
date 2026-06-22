@@ -423,35 +423,9 @@ func (r *Renderer) RenderNavSpace(d viewmodel.NavSpaceData) string {
 //	CPU: <40% white, 40-70% yellow, >=70% red
 //	MEM: <50% white, 50-80% yellow, >=80% red
 func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
-	stats := d.Stats
-	items := []struct {
-		Label string
-		Count int
-		Color string
-	}{
-		{"B", stats.Blocked, "#E74C3C"},
-		{"D", stats.Done, "#27AE60"},
-		{"W", stats.Working, "#F39C12"},
-		{"I", stats.Idle, "#7F8C8D"},
-		{"?", stats.Unknown, "#95A5A6"},
-	}
-
 	var inner strings.Builder
-	x := 365
-	step := 65
-	numGap := 4
-	for i := len(items) - 1; i >= 0; i-- {
-		item := items[i]
-		if item.Count == 0 && item.Label != "D" {
-			continue
-		}
-		labelLine := fmt.Sprintf(`<text x="%d" y="185" text-anchor="end" fill="%s" font-family="sans-serif" font-size="28" font-weight="900">%s</text>`, x, item.Color, item.Label)
-		numLine := fmt.Sprintf(`<text x="%d" y="185" text-anchor="start" fill="white" font-family="sans-serif" font-size="28" font-weight="900">%d</text>`, x+numGap, item.Count)
-		inner.WriteString("\n  " + labelLine + "\n  " + numLine)
-		x -= step
-	}
 
-	// CPU/MEM at top-right
+	// ── Top row: CPU, MEM, status summary ──
 	cpuPct := formatPct(d.CPUPercent)
 	cpuCol := cpuColor(d.CPUPercent)
 	if d.CPUPercent <= 0.01 {
@@ -465,17 +439,140 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		memCol = "#555"
 	}
 
-	// CPU/MEM row at top: "C 45%  M 62%" — abbreviated single-char labels
-	// so the clock on K14 doesn't clip the text. Font: labels 20pt bold white,
-	// values 24pt bold colored (approaching the 28pt stats-bar font below).
-	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="220" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="20" font-weight="900">C</text>`))
-	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="245" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="24" font-weight="900">%s</text>`, cpuCol, cpuPct))
-	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="315" y="50" text-anchor="start" fill="white" font-family="sans-serif" font-size="20" font-weight="900">M</text>`))
-	inner.WriteString("\n  ")
-	inner.WriteString(fmt.Sprintf(`<text x="340" y="50" text-anchor="start" fill="%s" font-family="sans-serif" font-size="24" font-weight="900">%s</text>`, memCol, memPct))
+	inner.WriteString(fmt.Sprintf(`  <text x="20" y="28" fill="white" font-family="sans-serif" font-size="16" font-weight="700">CPU</text>
+  <text x="60" y="28" fill="%s" font-family="sans-serif" font-size="18" font-weight="900">%s</text>
+  <text x="115" y="28" fill="white" font-family="sans-serif" font-size="16" font-weight="700">MEM</text>
+  <text x="155" y="28" fill="%s" font-family="sans-serif" font-size="18" font-weight="900">%s</text>
+`, cpuCol, cpuPct, memCol, memPct))
+
+	// Status summary inline
+	stats := d.Stats
+	type si struct{ label string; count int; color string }
+	statusItems := []si{
+		{"B", stats.Blocked, "#E74C3C"},
+		{"D", stats.Done, "#27AE60"},
+		{"W", stats.Working, "#F39C12"},
+		{"I", stats.Idle, "#7F8C8D"},
+		{"?", stats.Unknown, "#95A5A6"},
+	}
+	xPos := 220
+	for _, item := range statusItems {
+		if item.count == 0 {
+			continue
+		}
+		inner.WriteString(fmt.Sprintf(`  <text x="%d" y="28" fill="%s" font-family="sans-serif" font-size="16" font-weight="900">%s</text>
+  <text x="%d" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
+`, xPos, item.color, item.label, xPos+18, item.count))
+		xPos += 48
+	}
+
+	inner.WriteString(`  <line x1="0" y1="38" x2="400" y2="38" stroke="#444" stroke-width="1"/>
+`)
+
+	// ── Space blocks ──
+	spaces := d.Spaces
+	if len(spaces) == 0 {
+		inner.WriteString(`  <text x="200" y="110" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="18" font-weight="400">---</text>`)
+	} else {
+		blockW := 120
+		blockH := 150
+		gap := 10
+		blockCount := len(spaces)
+		if blockCount > 3 {
+			blockCount = 3
+		}
+		totalW := blockCount*blockW + (blockCount-1)*gap
+		startX := (400 - totalW) / 2
+
+		for i := 0; i < blockCount && i < len(spaces); i++ {
+			sp := spaces[i]
+			x := startX + i*(blockW+gap)
+			y := 44
+
+			spaceLabel := sp.Label
+			if len(spaceLabel) > 8 {
+				spaceLabel = spaceLabel[:8] + ".."
+			}
+
+			inner.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="%d" height="%d" rx="6" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <text x="%d" y="%d" text-anchor="middle" fill="white" font-family="sans-serif" font-size="12" font-weight="700">%s</text>
+`, x, y, blockW, blockH, x+blockW/2, y+16, escapeXML(spaceLabel)))
+
+			machineY := y + 24
+			for mi, mac := range sp.Machines {
+				if mi > 0 {
+					inner.WriteString(fmt.Sprintf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#333" stroke-width="1"/>
+`, x+4, machineY-2, x+blockW-4, machineY-2))
+				}
+
+				macColor := mac.Color
+				if macColor == "" {
+					macColor = "#6B7280"
+				}
+				inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="11" font-weight="700">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="14" font-weight="900">%d</text>
+`, x+6, machineY+12, macColor, mac.Abbr, x+blockW-8, machineY+12, mac.Total))
+
+				// Colored status bar
+				barY := machineY + 16
+				if len(mac.Stats) > 0 {
+					barX := x + 6
+					barW := blockW - 12
+					total := mac.Total
+					barOrder := []struct {
+						key   string
+						color string
+					}{
+						{"blocked", "#E74C3C"},
+						{"working", "#F39C12"},
+						{"done", "#27AE60"},
+						{"idle", "#7F8C8D"},
+						{"unknown", "#95A5A6"},
+					}
+					for _, bo := range barOrder {
+						cnt := mac.Stats[bo.key]
+						if cnt == 0 {
+							continue
+						}
+						segW := int(float64(barW) * float64(cnt) / float64(total))
+						if segW < 1 {
+							segW = 1
+						}
+						inner.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="%d" height="4" rx="2" fill="%s"/>
+`, barX, barY, segW, bo.color))
+						barX += segW
+					}
+				}
+
+				// Status badges
+				badgeY := machineY + 34
+				bX := x + 6
+				badgeOrder := []struct {
+					key   string
+					label string
+					color string
+				}{
+					{"blocked", "B", "#E74C3C"},
+					{"done", "D", "#27AE60"},
+					{"working", "W", "#F39C12"},
+					{"idle", "I", "#7F8C8D"},
+					{"unknown", "?", "#95A5A6"},
+				}
+				for _, bo := range badgeOrder {
+					cnt := mac.Stats[bo.key]
+					if cnt == 0 {
+						continue
+					}
+					inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="11" font-weight="900">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="11" font-weight="400">%d</text>
+`, bX, badgeY, bo.color, bo.label, bX+14, badgeY, cnt))
+					bX += 32
+				}
+
+				machineY += 52
+			}
+		}
+	}
 
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">%s
 </svg>`, inner.String())

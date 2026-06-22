@@ -5,6 +5,7 @@ package viewmodel
 
 import (
 	"github.com/herdr-deck/herdrdeck/displaymodel"
+	"github.com/herdr-deck/herdrdeck/protocol"
 )
 
 // Adapt converts a displaymodel.Model into 14 KeyCommand values (K1-K14).
@@ -86,8 +87,76 @@ func Adapt(m displaymodel.Model) []KeyCommand {
 			Active:       m.NavSpace.Active,
 		},
 	})
-
 	// K14: Stats
+	// Compute per-space, per-machine, per-status breakdown
+	type statusKey struct{ space, machine, status string }
+	statCount := make(map[statusKey]int)
+	spaceTotal := make(map[string]int)
+	spaceMachineSet := make(map[string]map[string]bool)
+
+	for _, a := range m.Agents {
+		key := statusKey{a.WsLabel, a.ConnName, string(a.Status)}
+		statCount[key]++
+		spaceTotal[a.WsLabel]++
+		if spaceMachineSet[a.WsLabel] == nil {
+			spaceMachineSet[a.WsLabel] = make(map[string]bool)
+		}
+		spaceMachineSet[a.WsLabel][a.ConnName] = true
+	}
+
+	// Build machine color map
+	machineColor := make(map[string]string)
+	machineAbbr := make(map[string]string)
+	for _, mac := range m.Machines {
+		machineColor[mac.Name] = mac.Color
+		machineAbbr[mac.Name] = mac.Abbr
+	}
+
+	// Collect unique spaces in display order (preserve agent order)
+	var spaceOrder []string
+	seen := make(map[string]bool)
+	for _, a := range m.Agents {
+		if !seen[a.WsLabel] {
+			seen[a.WsLabel] = true
+			spaceOrder = append(spaceOrder, a.WsLabel)
+		}
+	}
+
+	var spaces []SpaceStats
+	for _, label := range spaceOrder {
+		// Collect machines for this space in order
+		var machines []MachineStats
+		for _, mac := range m.Machines {
+			if !spaceMachineSet[label][mac.Name] {
+				continue
+			}
+			machineTotal := 0
+			statusMap := make(map[string]int)
+			for _, st := range []protocol.AgentStatus{
+				protocol.StatusDone, protocol.StatusIdle,
+				protocol.StatusWorking, protocol.StatusBlocked,
+				protocol.StatusUnknown,
+			} {
+				cnt := statCount[statusKey{label, mac.Name, string(st)}]
+				if cnt > 0 {
+					statusMap[string(st)] = cnt
+					machineTotal += cnt
+				}
+			}
+			machines = append(machines, MachineStats{
+				Abbr:  mac.Abbr,
+				Color: mac.Color,
+				Total: machineTotal,
+				Stats: statusMap,
+			})
+		}
+		spaces = append(spaces, SpaceStats{
+			Label:    label,
+			Machines: machines,
+			Total:    spaceTotal[label],
+		})
+	}
+
 	keys = append(keys, KeyCommand{
 		Stats: &StatsData{
 			KeyID:         "stats",
@@ -95,6 +164,7 @@ func Adapt(m displaymodel.Model) []KeyCommand {
 			Stats:         m.Stats.AgentStats,
 			CPUPercent:    m.Stats.CPUPercent,
 			MemoryPercent: m.Stats.MemoryPercent,
+			Spaces:        spaces,
 		},
 	})
 

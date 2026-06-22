@@ -231,69 +231,68 @@ func TestRenderNavSpace_SingleLine(t *testing.T) {
 	}
 }
 
-func TestRenderStatsKey_Basic(t *testing.T) {
+func TestRenderStatsKey_ShowsTopSummary(t *testing.T) {
 	r := New()
 	svg := decodeSVG(r.RenderStatsKey(viewmodel.StatsData{
-		Stats: protocol.AgentStats{
-			Done:    3,
-			Idle:    2,
-			Working: 4,
-			Blocked: 1,
-			Unknown: 0,
+		Stats: protocol.AgentStats{Done: 3, Idle: 2, Working: 1, Blocked: 1, Unknown: 0},
+		CPUPercent:    23.5,
+		MemoryPercent: 45.2,
+	}))
+	if !strings.Contains(svg, "CPU") || !strings.Contains(svg, "24%") {
+		t.Error("should show CPU")
+	}
+	if !strings.Contains(svg, "MEM") || !strings.Contains(svg, "45%") {
+		t.Error("should show MEM")
+	}
+	// Status uses single-letter labels: B/D/W/I
+	if !strings.Contains(svg, ">D<") || !strings.Contains(svg, ">3<") {
+		t.Error("should show Done:3")
+	}
+	if !strings.Contains(svg, ">B<") || !strings.Contains(svg, ">1<") {
+		t.Error("should show Blocked:1")
+	}
+}
+
+func TestRenderStatsKey_SpaceBlocks(t *testing.T) {
+	r := New()
+	svg := decodeSVG(r.RenderStatsKey(viewmodel.StatsData{
+		Stats: protocol.AgentStats{Done: 3, Idle: 2, Working: 1, Blocked: 1},
+		Spaces: []viewmodel.SpaceStats{
+			{
+				Label: "main-proj",
+				Total: 4,
+				Machines: []viewmodel.MachineStats{
+					{Abbr: "LCL", Color: "#4ADE80", Total: 3, Stats: map[string]int{"done": 1, "idle": 1}},
+					{Abbr: "DEV", Color: "#60A5FA", Total: 1, Stats: map[string]int{"blocked": 1}},
+				},
+			},
+			{
+				Label: "web-app",
+				Total: 2,
+				Machines: []viewmodel.MachineStats{
+					{Abbr: "LCL", Color: "#4ADE80", Total: 2, Stats: map[string]int{"done": 2}},
+				},
+			},
 		},
 		CPUPercent:    23.5,
 		MemoryPercent: 45.2,
 	}))
-	// Each item is now two <text> elements: colored letter + white number
-	if !strings.Contains(svg, ">D<") {
-		t.Error("should show Done label D")
+	if !strings.Contains(svg, "main-pro") {
+		t.Error("should show space label 'main-proj'")
 	}
-	if !strings.Contains(svg, ">3<") {
-		t.Error("should show Done count 3")
+	// Should show machine abbreviations
+	if !strings.Contains(svg, "LCL") || !strings.Contains(svg, "DEV") {
+		t.Error("should show machine abbreviations LCL and DEV")
 	}
-	if !strings.Contains(svg, ">I<") {
-		t.Error("should show Idle label I")
-	}
-	if !strings.Contains(svg, ">2<") {
-		t.Error("should show Idle count 2")
-	}
-	if !strings.Contains(svg, ">W<") {
-		t.Error("should show Working label W")
-	}
-	if !strings.Contains(svg, ">4<") {
-		t.Error("should show Working count 4")
+	// Status uses single-letter badges: B/D/W/I
+	if !strings.Contains(svg, ">D<") && !strings.Contains(svg, ">I<") {
+		t.Error("should show status badges")
 	}
 	if !strings.Contains(svg, ">B<") {
-		t.Error("should show Blocked label B")
-	}
-	if !strings.Contains(svg, ">1<") {
-		t.Error("should show Blocked count 1")
-	}
-	// Numbers should be white
-	if !strings.Contains(svg, `fill="white"`) {
-		t.Error("numbers should be white")
-	}
-	// Letters should use their status colors
-	if !strings.Contains(svg, `fill="#27AE60"`) {
-		t.Error("D should use green")
-	}
-	if !strings.Contains(svg, `fill="#E74C3C"`) {
-		t.Error("B should use red")
-	}
-	// CPU/MEM labels (white) and values should be present
-	if !strings.Contains(svg, ">C<") {
-		t.Error("K14 should show C label")
-	}
-	if !strings.Contains(svg, ">M<") {
-		t.Error("K14 should show M label")
-	}
-	if !strings.Contains(svg, "24%") {
-		t.Error("K14 should show CPU value 24%%")
-	}
-	if !strings.Contains(svg, "45%") {
-		t.Error("K14 should show MEM value 45%%")
+		t.Error("should show blocked badge (DEV machine)")
 	}
 }
+
 
 func TestRenderStatsKey_ZeroHidden(t *testing.T) {
 	r := New()
@@ -338,12 +337,12 @@ func TestRenderStatsKey_CPUValue(t *testing.T) {
 	if !strings.Contains(svg, "72%") {
 		t.Error("K14 should show MEM 72%")
 	}
-	// CPU at x=245, MEM at x=340
-	if !strings.Contains(svg, `x="245"`) {
-		t.Error("CPU value should be at x=245")
+	// CPU value at x=60, MEM value at x=155 (new layout)
+	if !strings.Contains(svg, `x="60"`) {
+		t.Error("CPU value should be at x=60")
 	}
-	if !strings.Contains(svg, `x="340"`) {
-		t.Error("MEM value should be at x=340")
+	if !strings.Contains(svg, `x="155"`) {
+		t.Error("MEM value should be at x=155")
 	}
 }
 
