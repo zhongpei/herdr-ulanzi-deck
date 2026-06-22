@@ -203,7 +203,8 @@ func (r *Renderer) RenderAgentKeyFrames(d viewmodel.AgentKeyData) []string {
 // coordinate changes in the SVG output (not via SVG transform), since the
 // hardware renderer does not support transform attributes.
 //
-// Currently animated: "working" (rotating spinner notch around center 180,180).
+// Currently animated: "working" (snake dots — 3 white dots advance
+// around a circle of 8 dots like a snake).
 // Other statuses are returned unchanged.
 func rotateStatusIconSVG(status, icon string, frame, totalFrames int) string {
 	if totalFrames <= 1 {
@@ -212,19 +213,32 @@ func rotateStatusIconSVG(status, icon string, frame, totalFrames int) string {
 	if status != "working" {
 		return icon
 	}
-	if frame == 0 {
-		return icon
+
+	// 8 dots on radius 10, center (180, 180), at 45° increments.
+	// 3 consecutive white dots advance 1 position per frame.
+	type dot struct{ x, y float64 }
+	dots := []dot{
+		{190.0, 180.0}, {187.1, 187.1}, {180.0, 190.0}, {172.9, 187.1},
+		{170.0, 180.0}, {172.9, 172.9}, {180.0, 170.0}, {187.1, 172.9},
 	}
-	// The working spinner is:
-	//   <circle cx="180" cy="180" r="8" fill="none" stroke="white" stroke-width="3"/>
-	//   <line x1="180" y1="170" x2="180" y2="174" stroke="white" stroke-width="3" stroke-linecap="round"/>
-	// The notch (line) rotates around center (180, 180).
-	angleDeg := float64(frame) * 360.0 / float64(totalFrames)
-	x1, y1 := rotatePoint(180, 170, 180, 180, angleDeg)
-	x2, y2 := rotatePoint(180, 174, 180, 180, angleDeg)
-	return fmt.Sprintf(`<circle cx="180" cy="180" r="8" fill="none" stroke="white" stroke-width="3"/>
-<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="white" stroke-width="3" stroke-linecap="round"/>`,
-		x1, y1, x2, y2)
+
+	head := frame % totalFrames
+	var sb strings.Builder
+	for i, d := range dots {
+		// White if within 3 positions after head (wrapping around)
+		dist := (i - head) % totalFrames
+		if dist < 0 {
+			dist += totalFrames
+		}
+		if dist < 3 {
+			sb.WriteString(fmt.Sprintf(`<circle cx="%.1f" cy="%.1f" r="3" fill="white"/>
+`, d.x, d.y))
+		} else {
+			sb.WriteString(fmt.Sprintf(`<circle cx="%.1f" cy="%.1f" r="3" fill="#888" opacity="0.3"/>
+`, d.x, d.y))
+		}
+	}
+	return sb.String()
 }
 
 // rotatePoint rotates point (x, y) around center (cx, cy) by angleDeg degrees.

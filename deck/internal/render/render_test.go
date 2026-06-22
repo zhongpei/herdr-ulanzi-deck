@@ -624,18 +624,18 @@ func TestRenderAgentKeyFrames_Working_FramesDiffer(t *testing.T) {
 	if len(frames) < 2 {
 		t.Fatal("need at least 2 frames for difference test")
 	}
-	// Frame 0 and frame 1 should have different notch positions
+	// Frame 0 and frame 1 should have different snake dot positions
 	f0 := decodeSVG(frames[0])
 	f1 := decodeSVG(frames[1])
 	if f0 == f1 {
-		t.Error("consecutive frames should differ (notch rotation)")
+		t.Error("consecutive frames should differ (snake dot rotation)")
 	}
-	// Verify first frame has original notch at 12-o'clock (y=170 or y=170.0)
-	if !strings.Contains(f0, `y1="170"`) && !strings.Contains(f0, `y1="170.0"`) {
-		t.Error("frame 0 should have notch start at y=170")
+	// Frame 0 shows snake dots (head at position 0)
+	if !strings.Contains(f0, `cx="190.0" cy="180.0" r="3" fill="white"`) {
+		t.Error("frame 0 should have white snake dot at position 0")
 	}
-	if !strings.Contains(f0, `y2="174"`) && !strings.Contains(f0, `y2="174.0"`) {
-		t.Error("frame 0 should have notch end at y=174")
+	if strings.Count(f0, "<circle") != 8 {
+		t.Error("frame 0 should have 8 circle elements for snake dots")
 	}
 }
 
@@ -708,12 +708,19 @@ func TestRotatePoint_FullCycle(t *testing.T) {
 
 // ─── rotateStatusIconSVG ────────────────────────────────────────
 
-func TestRotateStatusIconSVG_Frame0_EqualsOriginal(t *testing.T) {
+func TestRotateStatusIconSVG_Frame0_StartsWithSnake(t *testing.T) {
 	icon := StatusIcons()["working"]
 	got := rotateStatusIconSVG("working", icon, 0, 8)
-	// Frame 0 should match original icon (no rotation)
-	if got != icon {
-		t.Errorf("frame 0: got %q, want original %q", got, icon)
+	// Frame 0 shows snake dots (head at position 0)
+	// Dots 0,1,2 white; dot 7 gray
+	if !strings.Contains(got, `cx="190.0" cy="180.0" r="3" fill="white"`) {
+		t.Errorf("frame 0: dot 0 should be white")
+	}
+	if !strings.Contains(got, `cx="187.1" cy="172.9" r="3" fill="#888"`) {
+		t.Errorf("frame 0: dot 7 should be gray")
+	}
+	if strings.Count(got, "<circle") != 8 {
+		t.Errorf("expected 8 circles, got %d", strings.Count(got, "<circle"))
 	}
 }
 
@@ -722,7 +729,7 @@ func TestRotateStatusIconSVG_NonWorking_Unchanged(t *testing.T) {
 		icon := StatusIcons()[st]
 		got := rotateStatusIconSVG(st, icon, 0, 1)
 		if got != icon {
-			t.Errorf("%s: should be unchanged, got %q, want %q", st, got, icon)
+			t.Errorf("%s: should be unchanged", st)
 		}
 	}
 }
@@ -735,24 +742,53 @@ func TestRotateStatusIconSVG_StaticStatus_ReturnsInput(t *testing.T) {
 	}
 }
 
-func TestRotateStatusIconSVG_Working_Frame2_NotchAtRight(t *testing.T) {
+func TestRotateStatusIconSVG_Working_SnakeDots(t *testing.T) {
+	icon := StatusIcons()["working"]
+
+	// Frame 1: head=1 → dots 1,2,3 should be white, dot 0 should be gray
+	got := rotateStatusIconSVG("working", icon, 1, 8)
+	if !strings.Contains(got, `cx="187.1" cy="187.1" r="3" fill="white"`) {
+		t.Errorf("frame 1: dot 1 should be white")
+	}
+	if !strings.Contains(got, `cx="180.0" cy="190.0" r="3" fill="white"`) {
+		t.Errorf("frame 1: dot 2 should be white")
+	}
+	if !strings.Contains(got, `cx="172.9" cy="187.1" r="3" fill="white"`) {
+		t.Errorf("frame 1: dot 3 should be white")
+	}
+	// Dot 0 should be gray
+	if !strings.Contains(got, `cx="190.0" cy="180.0" r="3" fill="#888"`) {
+		t.Errorf("frame 1: dot 0 should be gray")
+	}
+}
+
+func TestRotateStatusIconSVG_Working_SnakeWraparound(t *testing.T) {
+	icon := StatusIcons()["working"]
+
+	// Frame 6: head=6 → dots 6,7,0 white, dot 5 gray (wraparound)
+	got := rotateStatusIconSVG("working", icon, 6, 8)
+	if !strings.Contains(got, `cx="180.0" cy="170.0" r="3" fill="white"`) {
+		t.Errorf("frame 6: dot 6 should be white")
+	}
+	if !strings.Contains(got, `cx="187.1" cy="172.9" r="3" fill="white"`) {
+		t.Errorf("frame 6: dot 7 should be white")
+	}
+	if !strings.Contains(got, `cx="190.0" cy="180.0" r="3" fill="white"`) {
+		t.Errorf("frame 6: dot 0 should be white (wraparound)")
+	}
+	// Dot 5 should be gray
+	if !strings.Contains(got, `cx="172.9" cy="172.9" r="3" fill="#888"`) {
+		t.Errorf("frame 6: dot 5 should be gray")
+	}
+}
+
+func TestRotateStatusIconSVG_Working_8DotsPresent(t *testing.T) {
 	icon := StatusIcons()["working"]
 	got := rotateStatusIconSVG("working", icon, 2, 8)
-	// Frame 2 = 90° for 8-frame cycle → notch at ~(190, 180)
-	if !strings.Contains(got, `x1="190.0"`) {
-		t.Errorf("frame 2: notch should be at right side (x≈190), got: %s", got)
+	if strings.Count(got, `<circle`) != 8 {
+		t.Errorf("expected 8 circle elements, got %d", strings.Count(got, "<circle"))
 	}
 }
-
-func TestRotateStatusIconSVG_Working_Frame4_NotchAtBottom(t *testing.T) {
-	icon := StatusIcons()["working"]
-	got := rotateStatusIconSVG("working", icon, 4, 8)
-	// Frame 4 = 180° → notch at bottom: (180, 190) → (180, 186)
-	if !strings.Contains(got, `y1="190.0"`) {
-		t.Errorf("frame 4: notch start should be at bottom (y≈190), got: %s", got)
-	}
-}
-
 func TestRenderAgentKeyFrame_TwoLineWorkspace(t *testing.T) {
 	r := New()
 	d := viewmodel.AgentKeyData{
@@ -785,10 +821,13 @@ func TestRenderAgentKeyFrames_AllAnimatedFramesValidSVGs(t *testing.T) {
 		if !strings.Contains(svg, "<svg") {
 			t.Errorf("frame %d: not an SVG", i)
 		}
-		// Verify notch is present (original or rotated format)
-		hasLine := strings.Contains(svg, `x1="`) && strings.Contains(svg, `y1="`)
-		if !hasLine {
-			t.Errorf("frame %d: missing notch line element", i)
+		// Verify snake dots are present (8 circle elements)
+		if strings.Count(svg, `<circle`) < 8 {
+			t.Errorf("frame %d: expected 8 snake dot circles, got %d", i, strings.Count(svg, "<circle"))
+		}
+		// Verify at least one white dot (snake head) exists
+		if !strings.Contains(svg, `fill="white"`) {
+			t.Errorf("frame %d: expected at least one white snake dot", i)
 		}
 	}
 }
