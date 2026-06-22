@@ -312,10 +312,27 @@ func renderAll(m displaymodel.Model) {
 			a := *k.Agent
 			if offline {
 				a.Status = "offline"
-			}
-			svg := ir.RenderAgentKey(a)
-			if err := dc.SetKeyImage(pk, svg, false); err != nil {
-				log.Error().Err(err).Str("key", pk).Msg("set key image failed")
+				svg := ir.RenderAgentKey(a)
+				if err := dc.SetKeyImage(pk, svg, false); err != nil {
+					log.Error().Err(err).Str("key", pk).Msg("set key image failed")
+				}
+			} else {
+				frames := ir.RenderAgentKeyFrames(a)
+				if len(frames) > 1 {
+					_, delayMs := render.AnimationFrames(a.Status)
+					delays := make([]int, len(frames))
+					for i := range delays {
+						delays[i] = delayMs
+					}
+					if err := dc.SetKeyGIFImage(pk, frames, delays, false); err != nil {
+						log.Error().Err(err).Str("key", pk).Msg("set animated GIF failed")
+					}
+				} else {
+					svg := ir.RenderAgentKey(a)
+					if err := dc.SetKeyImage(pk, svg, false); err != nil {
+						log.Error().Err(err).Str("key", pk).Msg("set key image failed")
+					}
+				}
 			}
 		case k.NavAll != nil:
 			if err := dc.SetKeyImage(pk, ir.RenderNavAll(*k.NavAll), false); err != nil {

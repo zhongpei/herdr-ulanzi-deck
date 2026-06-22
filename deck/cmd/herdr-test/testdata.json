@@ -1,0 +1,16 @@
+{
+  "text_tests": [
+    {"label": "简体", "status": "working", "text": "中文测试"},
+    {"label": "繁体", "status": "done", "text": "繁體中文"},
+    {"label": "标点", "status": "idle", "text": "，。！？、；：\u201c\u201d\u2018\u2019"},
+    {"label": "混合", "status": "blocked", "text": "Hello 世界 123"},
+    {"label": "长文", "status": "unknown", "text": "这是一个很长的中文句子用来测试文本换行和溢出处理"},
+    {"label": "表情", "status": "working", "text": "\uD83D\uDE00\uD83C\uDF89\uD83D\uDE80\u2764\uFE0F\u2B50"},
+    {"label": "代码", "status": "done", "text": "func main() { fmt.Println(\"测试\") }"},
+    {"label": "手势", "status": "working", "text": "\uD83D\uDC4D\uD83D\uDE4F\uD83D\uDCAA\uD83D\uDD25\uD83C\uDFAF"},
+    {"label": "混合表情", "status": "idle", "text": "中文\u2764\uFE0F混合\uD83D\uDD25测试\uD83C\uDFAF标点\u26A0\uFE0F"},
+    {"label": "国旗", "status": "blocked", "text": "\uD83C\uDDE8\uD83C\uDDF3\uD83C\uDDFA\uD83C\uDDF8\uD83C\uDDEF\uD83C\uDDF5"},
+    {"label": "符号", "status": "done", "text": "\u27A1\uFE0F\u2B05\uFE0F\u2B06\uFE0F\u2B07\uFE0F\uD83D\uDD04\uD83D\uDD03\u2139\uFE0F"},
+    {"label": "箭头", "status": "unknown", "text": "\u2190\u2191\u2192\u2193\u2194\u2195\u2196\u2197\u2198\u2199"}
+  ]
+}

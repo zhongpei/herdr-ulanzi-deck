@@ -12,3 +12,4 @@ js-demo/node_modules/
 collector/build/
 collector/herdr-collector
 panel-gio/herdr-panel
+plugin-common-node/

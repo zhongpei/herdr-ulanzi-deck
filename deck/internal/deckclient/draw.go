@@ -14,12 +14,11 @@ import (
 	"github.com/tdewolff/canvas/renderers"
 	"github.com/tdewolff/canvas/renderers/rasterizer"
 )
-
-// SVGToGIF renders multiple SVG frames as an animated GIF.
-// Each frame is rendered at the given width×height resolution.
+// SVGFramesToGIF converts multiple SVG frames into an animated GIF.
+// Each frame SVG is rendered at the given width×height resolution.
 // delaysMs[i] is the per-frame delay in milliseconds.
-// Returns the GIF binary data.
-func SVGToGIF(frames [][]byte, width, height int, delaysMs []int) ([]byte, error) {
+// Returns the GIF binary data, suitable for sending via type:3 + gifdata.
+func SVGFramesToGIF(frames [][]byte, width, height int, delaysMs []int) ([]byte, error) {
 	if len(frames) == 0 {
 		return nil, fmt.Errorf("no frames to encode")
 	}
@@ -38,7 +37,7 @@ func SVGToGIF(frames [][]byte, width, height int, delaysMs []int) ([]byte, error
 			return nil, fmt.Errorf("frame %d: not an SVG document", i)
 		}
 
-		// Parse viewBox to compute scale
+		// Parse viewBox for scale
 		svgW := 200.0
 		svgH := 200.0
 		vb := extractStr(svgStr, "viewBox")
@@ -63,8 +62,7 @@ func SVGToGIF(frames [][]byte, width, height int, delaysMs []int) ([]byte, error
 		draw.Draw(palettedImg, palettedImg.Bounds(), rgba, image.Point{}, draw.Src)
 
 		out.Image = append(out.Image, palettedImg)
-		// Convert ms to GIF centiseconds (cs = ms / 10)
-		out.Delay = append(out.Delay, delaysMs[i]/10)
+		out.Delay = append(out.Delay, delaysMs[i]/10) // ms → centiseconds
 	}
 
 	if len(out.Image) > 0 {
@@ -83,12 +81,9 @@ func SVGToGIF(frames [][]byte, width, height int, delaysMs []int) ([]byte, error
 }
 
 // svgToRGBA renders SVG content to an RGBA image using the canvas rasterizer.
-// This is the same rendering as renderDirectPNG but outputs an image directly
-// (no PNG round-trip), useful for GIF frame encoding.
 func svgToRGBA(svg string, width, height int, scaleX, scaleY float64) (*image.RGBA, error) {
 	c := canvas.New(float64(width), float64(height))
 
-	// Draw rectangles (back to front)
 	rects := parseRectElements(svg)
 	for _, r := range rects {
 		fill := parseHexA(r.fill, r.opacity)
@@ -112,7 +107,6 @@ func svgToRGBA(svg string, width, height int, scaleX, scaleY float64) (*image.RG
 		c.RenderPath(path, style, canvas.Identity)
 	}
 
-	// Draw text
 	const px2pt = 72.0 / 25.4
 	texts := parseTextElements(svg)
 	for _, t := range texts {
@@ -145,7 +139,6 @@ func svgToRGBA(svg string, width, height int, scaleX, scaleY float64) (*image.RG
 		}
 	}
 
-	// Draw polylines
 	polylines := parsePolylineElements(svg)
 	for _, p := range polylines {
 		if len(p.points) < 4 {
@@ -164,7 +157,6 @@ func svgToRGBA(svg string, width, height int, scaleX, scaleY float64) (*image.RG
 		c.RenderPath(path, style, canvas.Identity)
 	}
 
-	// Draw lines
 	lines := parseLineElements(svg)
 	for _, l := range lines {
 		path := &canvas.Path{}
@@ -174,7 +166,6 @@ func svgToRGBA(svg string, width, height int, scaleX, scaleY float64) (*image.RG
 		c.RenderPath(path, style, canvas.Identity)
 	}
 
-	// Draw circles
 	circles := parseCircleElements(svg)
 	for _, ci := range circles {
 		px := ci.cx * scaleX

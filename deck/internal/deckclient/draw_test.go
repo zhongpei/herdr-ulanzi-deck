@@ -1,9 +1,9 @@
 package deckclient
 
 import (
+	"bytes"
 	"image/gif"
 	"image/color"
-	"strings"
 	"testing"
 
 	"github.com/tdewolff/canvas"
@@ -284,7 +284,7 @@ func TestLoadFont_SeparateCache(t *testing.T) {
 	}
 }
 
-// ─── GIF encoding tests ─────────────────────────────────────────
+// ─── SVGFramesToGIF ──────────────────────────────────────────────
 
 const testGIFSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
 <rect width="200" height="200" rx="8" fill="#4ADE80"/>
@@ -292,104 +292,72 @@ const testGIFSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200
 <text x="100" y="100" text-anchor="middle" fill="white" font-family="sans-serif" font-size="36" font-weight="700">test</text>
 </svg>`
 
-func TestSVGToGIF_Basic(t *testing.T) {
+func TestSVGFramesToGIF_Basic(t *testing.T) {
 	frames := [][]byte{[]byte(testGIFSVG), []byte(testGIFSVG)}
 	delays := []int{120, 120}
 
-	data, err := SVGToGIF(frames, 196, 196, delays)
+	data, err := SVGFramesToGIF(frames, 196, 196, delays)
 	if err != nil {
-		t.Fatalf("SVGToGIF failed: %v", err)
+		t.Fatalf("SVGFramesToGIF failed: %v", err)
 	}
 
-	// Verify GIF header
+	// Verify GIF89a header
 	if len(data) < 6 || string(data[:6]) != "GIF89a" {
-		t.Errorf("not a valid GIF: got header %q", string(data[:min(6, len(data))]))
+		t.Errorf("not a valid GIF: got header %q", data[:min(6, len(data))])
 	}
 
-	// Verify reasonable size (should be well under 300KB)
-	if len(data) > 300*1024 {
-		t.Errorf("GIF too large: %d bytes (limit 300KB)", len(data))
-	}
-}
-
-func TestSVGToGIF_NoFrames(t *testing.T) {
-	_, err := SVGToGIF([][]byte{}, 196, 196, []int{})
-	if err == nil {
-		t.Error("expected error for empty frames")
-	}
-}
-
-func TestSVGToGIF_DelayCountMismatch(t *testing.T) {
-	frames := [][]byte{[]byte(testGIFSVG)}
-	_, err := SVGToGIF(frames, 196, 196, []int{100, 200})
-	if err == nil {
-		t.Error("expected error for delay count mismatch")
-	}
-}
-
-func TestSVGToGIF_InvalidSVG(t *testing.T) {
-	frames := [][]byte{[]byte("not svg")}
-	_, err := SVGToGIF(frames, 196, 196, []int{100})
-	if err == nil {
-		t.Error("expected error for invalid SVG")
-	}
-}
-
-func TestSVGToGIF_FrameCount(t *testing.T) {
-	frames := [][]byte{[]byte(testGIFSVG), []byte(testGIFSVG), []byte(testGIFSVG)}
-	delays := []int{120, 200, 100}
-
-	data, err := SVGToGIF(frames, 196, 196, delays)
-	if err != nil {
-		t.Fatalf("SVGToGIF failed: %v", err)
+	// Verify size well under 300KB
+	if len(data) > 100*1024 {
+		t.Errorf("GIF too large: %d bytes", len(data))
 	}
 
-	g, err := gif.DecodeAll(strings.NewReader(string(data)))
+	// Verify 2 frames
+	r := bytes.NewReader(data)
+	g, err := gif.DecodeAll(r)
 	if err != nil {
 		t.Fatalf("gif decode: %v", err)
 	}
-
-	if len(g.Image) != 3 {
-		t.Errorf("frame count: got %d, want 3", len(g.Image))
+	if len(g.Image) != 2 {
+		t.Errorf("frame count: got %d, want 2", len(g.Image))
 	}
-	if len(g.Delay) != 3 {
-		t.Errorf("delay count: got %d, want 3", len(g.Delay))
+	if len(g.Delay) != 2 {
+		t.Errorf("delay count: got %d, want 2", len(g.Delay))
 	}
 }
 
-func TestSVGToGIF_Delays(t *testing.T) {
+func TestSVGFramesToGIF_Delays(t *testing.T) {
 	frames := [][]byte{[]byte(testGIFSVG), []byte(testGIFSVG)}
-	// delays in ms → GIF centiseconds (ms/10)
+	// 120ms → 12cs, 2000ms → 200cs
 	delays := []int{120, 2000}
 
-	data, err := SVGToGIF(frames, 196, 196, delays)
+	data, err := SVGFramesToGIF(frames, 196, 196, delays)
 	if err != nil {
-		t.Fatalf("SVGToGIF failed: %v", err)
+		t.Fatalf("SVGFramesToGIF failed: %v", err)
 	}
 
-	g, err := gif.DecodeAll(strings.NewReader(string(data)))
+	r := bytes.NewReader(data)
+	g, err := gif.DecodeAll(r)
 	if err != nil {
 		t.Fatalf("gif decode: %v", err)
 	}
 
 	if g.Delay[0] != 12 {
-		t.Errorf("delay[0]: got %d cs, want 12 cs (120ms)", g.Delay[0])
+		t.Errorf("delay[0]: got %d cs, want 12 cs", g.Delay[0])
 	}
 	if g.Delay[1] != 200 {
-		t.Errorf("delay[1]: got %d cs, want 200 cs (2000ms)", g.Delay[1])
+		t.Errorf("delay[1]: got %d cs, want 200 cs", g.Delay[1])
 	}
 }
 
-func TestSVGToGIF_Dimensions(t *testing.T) {
+func TestSVGFramesToGIF_Dimensions(t *testing.T) {
 	frames := [][]byte{[]byte(testGIFSVG)}
-	delays := []int{100}
-
-	data, err := SVGToGIF(frames, 196, 196, delays)
+	data, err := SVGFramesToGIF(frames, 196, 196, []int{100})
 	if err != nil {
-		t.Fatalf("SVGToGIF failed: %v", err)
+		t.Fatalf("SVGFramesToGIF failed: %v", err)
 	}
 
-	g, err := gif.DecodeAll(strings.NewReader(string(data)))
+	r := bytes.NewReader(data)
+	g, err := gif.DecodeAll(r)
 	if err != nil {
 		t.Fatalf("gif decode: %v", err)
 	}
@@ -400,25 +368,14 @@ func TestSVGToGIF_Dimensions(t *testing.T) {
 	}
 }
 
-func TestSVGToGIF_SingleFrame_StillValidGIF(t *testing.T) {
-	frames := [][]byte{[]byte(testGIFSVG)}
-	delays := []int{100}
-
-	data, err := SVGToGIF(frames, 196, 196, delays)
-	if err != nil {
-		t.Fatalf("SVGToGIF failed: %v", err)
+func TestSVGFramesToGIF_Errors(t *testing.T) {
+	if _, err := SVGFramesToGIF([][]byte{}, 196, 196, []int{}); err == nil {
+		t.Error("expected error for empty frames")
 	}
-
-	// Single-frame GIF should still be valid
-	if len(data) < 6 || string(data[:6]) != "GIF89a" {
-		t.Errorf("not a valid GIF: got header %q", string(data[:min(6, len(data))]))
+	if _, err := SVGFramesToGIF([][]byte{[]byte(testGIFSVG)}, 196, 196, []int{100, 200}); err == nil {
+		t.Error("expected error for delay count mismatch")
 	}
-
-	g, err := gif.DecodeAll(strings.NewReader(string(data)))
-	if err != nil {
-		t.Fatalf("gif decode: %v", err)
-	}
-	if len(g.Image) != 1 {
-		t.Errorf("single frame: got %d frames, want 1", len(g.Image))
+	if _, err := SVGFramesToGIF([][]byte{[]byte("not svg")}, 196, 196, []int{100}); err == nil {
+		t.Error("expected error for invalid SVG")
 	}
 }

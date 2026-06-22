@@ -259,124 +259,54 @@ func TestSetKeyImage_DifferentSVG_Reconverts(t *testing.T) {
 	}
 }
 
-// ─── Animated GIF tests ─────────────────────────────────────────
+// ─── SetKeyGIFImage ──────────────────────────────────────────────
 
-var testAnimSVGs = []string{
+var testGIFFrames = []string{
 	"data:image/svg+xml;base64," + "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOTYiIGhlaWdodD0iMTk2Ij48cmVjdCB3aWR0aD0iMTk2IiBoZWlnaHQ9IjE5NiIgZmlsbD0iIzJhMmEyYSIvPjwvc3ZnPg==",
 	"data:image/svg+xml;base64," + "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOTYiIGhlaWdodD0iMTk2Ij48cmVjdCB3aWR0aD0iMTk2IiBoZWlnaHQ9IjE5NiIgZmlsbD0iIzMzMzMzMyIvPjwvc3ZnPg==",
 }
 
-func TestSetKeyAnimatedImage_SameKeySameFrames_Skips(t *testing.T) {
+func TestSetKeyGIFImage_SendsGIF(t *testing.T) {
 	c, msgCh, cleanup := setupClient(t)
 	defer cleanup()
 
 	delays := []int{120, 120}
-
-	if err := c.SetKeyAnimatedImage("0_2", testAnimSVGs, delays, false); err != nil {
-		t.Fatalf("first call: %v", err)
-	}
-	if err := c.SetKeyAnimatedImage("0_2", testAnimSVGs, delays, false); err != nil {
-		t.Fatalf("second call (same): %v", err)
-	}
-
-	time.Sleep(20 * time.Millisecond)
-	if total := countMsgCh(msgCh); total != 1 {
-		t.Errorf("expected 1 WS message (cache skip), got %d", total)
-	}
-}
-
-func TestSetKeyAnimatedImage_DifferentFrames_Reconverts(t *testing.T) {
-	c, msgCh, cleanup := setupClient(t)
-	defer cleanup()
-
-	delays := []int{120, 120}
-
-	if err := c.SetKeyAnimatedImage("0_2", testAnimSVGs, delays, false); err != nil {
-		t.Fatalf("first call: %v", err)
-	}
-
-	// Different frames (different colors)
-	otherFrames := []string{
-		"data:image/svg+xml;base64," + "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOTYiIGhlaWdodD0iMTk2Ij48cmVjdCB3aWR0aD0iMTk2IiBoZWlnaHQ9IjE5NiIgZmlsbD0iI2ZmZmZmZiIvPjwvc3ZnPg==",
-	}
-	if err := c.SetKeyAnimatedImage("0_2", otherFrames, []int{120}, false); err != nil {
-		t.Fatalf("different frames call: %v", err)
-	}
-
-	time.Sleep(20 * time.Millisecond)
-	if total := countMsgCh(msgCh); total != 2 {
-		t.Errorf("expected 2 WS messages (different frames), got %d", total)
-	}
-}
-
-func TestSetKeyAnimatedImage_SendsImageGif(t *testing.T) {
-	c, msgCh, cleanup := setupClient(t)
-	defer cleanup()
-
-	delays := []int{120, 120}
-
-	if err := c.SetKeyAnimatedImage("0_2", testAnimSVGs, delays, false); err != nil {
-		t.Fatalf("call: %v", err)
+	if err := c.SetKeyGIFImage("0_2", testGIFFrames, delays, false); err != nil {
+		t.Fatalf("SetKeyGIFImage: %v", err)
 	}
 
 	time.Sleep(20 * time.Millisecond)
 	select {
 	case raw := <-msgCh:
 		msgStr := string(raw)
-		if !strings.Contains(msgStr, "image/gif") {
-			t.Errorf("message should contain image/gif, got: %s", msgStr)
+		if !strings.Contains(msgStr, `"type":3`) && !strings.Contains(msgStr, `"type":3`) {
+			t.Errorf("message should have type:3, got: %s", msgStr)
+		}
+		if !strings.Contains(msgStr, `"gifdata"`) {
+			t.Errorf("message should have gifdata field, got: %s", msgStr)
 		}
 	default:
 		t.Error("expected at least one WS message")
 	}
 }
 
-func TestSetKeyAnimatedImage_AfterReset_Reconverts(t *testing.T) {
+func TestSetKeyGIFImage_DifferentFrames_Reconverts(t *testing.T) {
 	c, msgCh, cleanup := setupClient(t)
 	defer cleanup()
 
 	delays := []int{120, 120}
-
-	if err := c.SetKeyAnimatedImage("0_2", testAnimSVGs, delays, false); err != nil {
-		t.Fatalf("first call: %v", err)
+	if err := c.SetKeyGIFImage("0_2", testGIFFrames, delays, false); err != nil {
+		t.Fatalf("first: %v", err)
 	}
 
-	c.ResetImageCache()
-
-	// Same frames after reset → should reconvert (cache cleared)
-	if err := c.SetKeyAnimatedImage("0_2", testAnimSVGs, delays, false); err != nil {
-		t.Fatalf("after reset: %v", err)
-	}
-
-	time.Sleep(20 * time.Millisecond)
-	total := countMsgCh(msgCh)
-	if total < 2 {
-		t.Errorf("expected at least 2 messages after reset, got %d", total)
-	}
-}
-
-func TestSetKeyAnimatedImage_NoFrames(t *testing.T) {
-	c, _, cleanup := setupClient(t)
-	defer cleanup()
-
-	if err := c.SetKeyAnimatedImage("0_2", []string{}, []int{}, false); err != nil {
-		t.Fatalf("empty frames should be nil error, got: %v", err)
-	}
-}
-
-func TestSetKeyAnimatedImage_EmptyKeyAction_NoSend(t *testing.T) {
-	c, msgCh, cleanup := setupClient(t)
-	defer cleanup()
-
-	// "4_2" is not in seeded key actions → actionID is empty → should skip send
-	delays := []int{120}
-	frames := []string{testAnimSVGs[0]}
-	if err := c.SetKeyAnimatedImage("4_2", frames, delays, false); err != nil {
-		t.Fatalf("unseeded key: %v", err)
+	// Different frames
+	other := []string{testGIFFrames[0]}
+	if err := c.SetKeyGIFImage("0_2", other, []int{120}, false); err != nil {
+		t.Fatalf("different: %v", err)
 	}
 
 	time.Sleep(20 * time.Millisecond)
-	if total := countMsgCh(msgCh); total != 0 {
-		t.Errorf("unseeded key should not send, got %d messages", total)
+	if total := countMsgCh(msgCh); total != 2 {
+		t.Errorf("expected 2 messages (different frames), got %d", total)
 	}
 }

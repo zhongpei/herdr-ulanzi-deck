@@ -7,7 +7,6 @@ package deckclient
 
 import (
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -329,11 +328,11 @@ func (c *Client) ResetImageCache() {
 	c.imageCache.Reset()
 }
 
-// SetKeyAnimatedImage renders multiple SVG frames as an animated GIF and
-// sends it to a key. K1-K10 support animated GIFs for status indication.
-// svgDataURIs are the SVG frame data URIs (as returned by render.RenderAgentKeyFrames).
+// SetKeyGIFImage converts SVG animation frames to a GIF and sends it
+// to a hardware key using the SDK's setGifDataIcon protocol (type:3 + gifdata).
+// svgDataURIs are SVG frame data URIs (from render.RenderAgentKeyFrames).
 // delaysMs[i] is the per-frame delay in milliseconds.
-func (c *Client) SetKeyAnimatedImage(key string, svgDataURIs []string, delaysMs []int, wide bool) error {
+func (c *Client) SetKeyGIFImage(key string, svgDataURIs []string, delaysMs []int, wide bool) error {
 	if len(svgDataURIs) == 0 {
 		return nil
 	}
@@ -344,14 +343,7 @@ func (c *Client) SetKeyAnimatedImage(key string, svgDataURIs []string, delaysMs 
 	}
 	h := 196
 
-	hash := hashAnimatedSVG(svgDataURIs, w)
-
-	// Layer 1: same physical key, same animated SVG set → hardware already has it
-	if entry, ok := c.imageCache.GetByKey(key); ok && entry.SVGHash == hash {
-		return nil
-	}
-
-	// Decode all SVG frames from data URIs
+	// Decode SVG frames from data URIs
 	svgFrames := make([][]byte, len(svgDataURIs))
 	for i, uri := range svgDataURIs {
 		b64 := uri
@@ -366,17 +358,14 @@ func (c *Client) SetKeyAnimatedImage(key string, svgDataURIs []string, delaysMs 
 		svgFrames[i] = data
 	}
 
-	// Encode as animated GIF
-	gifData, err := SVGToGIF(svgFrames, w, h, delaysMs)
+	// Convert SVG frames to animated GIF
+	gifData, err := SVGFramesToGIF(svgFrames, w, h, delaysMs)
 	if err != nil {
 		return fmt.Errorf("svg→gif: %w", err)
 	}
 
-	gifBase64 := base64.StdEncoding.EncodeToString(gifData)
-	dataURI := "data:image/gif;base64," + gifBase64
-
-	// Store in by-key cache (skip LRU for animated GIFs — they're status-specific)
-	c.imageCache.PutByKey(key, hash, dataURI)
+	// Send via type:3 + gifdata (raw base64, NOT a data URI)
+	gifB64 := base64.StdEncoding.EncodeToString(gifData)
 
 	c.mu.RLock()
 	actionID := c.keyActions[key]
@@ -385,20 +374,27 @@ func (c *Client) SetKeyAnimatedImage(key string, svgDataURIs []string, delaysMs 
 		return nil
 	}
 
-	return c.sendKeyImageDataURI(key, actionID, dataURI)
+	return c.sendGifDataURI(key, actionID, gifB64)
 }
 
-// hashAnimatedSVG computes a combined 64-bit FNV-1a hash of all SVG frame
-// data URIs and the render width, for cache dedup.
-func hashAnimatedSVG(frameDataURIs []string, width int) uint64 {
-	h := fnv.New64a()
-	for _, uri := range frameDataURIs {
-		h.Write([]byte(uri))
-	}
-	var wb [4]byte
-	binary.LittleEndian.PutUint32(wb[:], uint32(width))
-	h.Write(wb[:])
-	return h.Sum64()
+// sendGifDataURI sends GIF data via the SDK setGifDataIcon protocol.
+// type:3 + gifdata (raw base64) — NOT type:1 + data.
+func (c *Client) sendGifDataURI(key, actionID, gifB64 string) error {
+	return c.send("state", map[string]any{
+		"param": map[string]any{
+			"statelist": []map[string]any{
+				{
+					"uuid":     ActionUUID,
+					"key":      key,
+					"actionid": actionID,
+					"type":     3,
+					"gifdata":  gifB64,
+					"textData": "",
+					"showtext": false,
+				},
+			},
+		},
+	})
 }
 
 // ─── Send helpers ─────────────────────────────────────────────
