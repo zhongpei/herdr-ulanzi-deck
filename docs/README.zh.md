@@ -131,3 +131,29 @@ cd panel-gio && make build
 ```
 
 详见 [docs/development-guide.md](./development-guide.md)。
+
+## 变更历史
+
+### 2026-06-22 — Deck ImageCache + 共享 FontFamily
+
+**问题:** `herdr-deck` 在 macOS 上物理足迹达 1.5GB (RSS 仅 23MB)，根因是每次
+SVG→PNG 转换都创建新的 `canvas.FontFamily`，每次加载 11 种系统字体
+(CoreText)，累计约 1980 次字体加载。
+
+**修复 (方案 A: per-key render cache):**
+
+1. **`ImageCache`** (`deck/internal/deckclient/render_cache.go`) — 3 层缓存:
+   - `latestByKey`: 同物理键同 SVG 跳过发送 (硬件已有)
+   - `LRU` (64 entry): 不同键同 SVG 复用缓存 PNG，零转换
+   - 未命中: SVG→PNG 转换，结果入缓存
+2. **共享 `FontFamily`** (`draw.go` init()) — 只创建 1 个 FontFamily，
+   加载 4 种字重 × 11 字体，代替原来每次渲染创建新的 Family
+3. **移除 `KeyHashTracker`** — 被 ImageCache 替代
+
+**效果:**
+
+- 稳定态 0 次 canvas 调用/cycle (之前平均 2-5 次)
+- macOS footprint 1.5GB → ~200MB
+- `go test ./... -race` 218 用例全过
+
+详见 [debugging.md](./debugging.md) 第 6 节。

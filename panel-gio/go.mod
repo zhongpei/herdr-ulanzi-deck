@@ -3,6 +3,7 @@ module github.com/herdr-deck/herdrdeck/panel-gio
 go 1.26.2
 
 require (
+	fyne.io/systray v1.12.1
 	gioui.org v0.10.0
 	github.com/herdr-deck/herdrdeck/displaymodel v0.0.0-00010101000000-000000000000
 	github.com/herdr-deck/herdrdeck/protocol v0.0.0-00010101000000-000000000000
@@ -14,6 +15,7 @@ require (
 require (
 	gioui.org/shader v1.0.8 // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect

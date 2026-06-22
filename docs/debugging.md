@@ -83,9 +83,21 @@ This ensures the plugin works without any user configuration.
 
 The D200X LCD firmware only accepts PNG images. SVG renders fine in the simulator (browser-based) but produces a black screen on the real device.
 
-The deck pipeline: SVG → PNG via `tdewolff/canvas` → base64 → WebSocket.
+The deck pipeline:
 
-This happens in `deck/internal/deckclient/draw.go` (`svgToPNG`) and `client.go` (`SetKeyImage`).
+```
+SVG → ImageCache(3层) → SVG→PNG(tdewolff/canvas) → base64 → WebSocket
+```
+
+1. **latestByKey** — same physical key, same SVG hash → skip send entirely
+2. **LRU** (64 entries) — different key, same SVG hash → send cached PNG, no conversion
+3. **Cache miss** — SVG→PNG via `draw.go` (`svgToPNG`) → store in both caches → send
+
+The cache is in `deck/internal/deckclient/render_cache.go`. `SetKeyImage` in `client.go`
+routes through it automatically. Call `ResetImageCache()` after reconnect to force full re-render.
+
+**Memory:** A global `sharedFontFamily` (initialized once in `init()`) eliminates redundant
+CoreText font loading, reducing macOS physical footprint from ~1.5GB to ~200MB.
 
 ---
 

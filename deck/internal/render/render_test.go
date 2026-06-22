@@ -2,6 +2,7 @@ package render
 
 import (
 	"encoding/base64"
+	"math"
 	"strings"
 	"testing"
 
@@ -562,5 +563,232 @@ func TestRenderNavAll_FilteredState(t *testing.T) {
 	svg := decodeSVG(r.RenderNavAll(d))
 	if !strings.Contains(svg, "#E67E22") {
 		t.Error("filtered NavAll should have amber background")
+	}
+}
+
+// ─── Animation frame tests ──────────────────────────────────────
+
+func TestAnimationFrames_Working(t *testing.T) {
+	frames, delayMs := AnimationFrames("working")
+	if frames != 8 {
+		t.Errorf("working frames: got %d, want 8", frames)
+	}
+	if delayMs != 120 {
+		t.Errorf("working delay: got %d, want 120ms", delayMs)
+	}
+}
+
+func TestAnimationFrames_Static(t *testing.T) {
+	for _, st := range []string{"done", "idle", "blocked", "unknown", "offline"} {
+		frames, delayMs := AnimationFrames(st)
+		if frames != 1 {
+			t.Errorf("%s frames: got %d, want 1", st, frames)
+		}
+		if delayMs != 0 {
+			t.Errorf("%s delay: got %d, want 0", st, delayMs)
+		}
+	}
+}
+
+func TestRenderAgentKeyFrames_Working_Returns8Frames(t *testing.T) {
+	r := New()
+	d := viewmodel.AgentKeyData{
+		KeyID: "0_0", Type: "agent", AgentType: "pi",
+		Alias: "builder", Status: "working", Focused: false,
+		ConnAbbr: "DEV", ConnAbbrColor: "#4ADE80", WsLabel: "main",
+	}
+	frames := r.RenderAgentKeyFrames(d)
+	if len(frames) != 8 {
+		t.Fatalf("working frames: got %d, want 8", len(frames))
+	}
+	// All frames should be valid SVG data URIs
+	for i, f := range frames {
+		if !strings.HasPrefix(f, "data:image/svg+xml;base64,") {
+			t.Errorf("frame %d: missing data URI prefix", i)
+		}
+		svg := decodeSVG(f)
+		if !strings.Contains(svg, "<svg") {
+			t.Errorf("frame %d: not an SVG", i)
+		}
+	}
+}
+
+func TestRenderAgentKeyFrames_Working_FramesDiffer(t *testing.T) {
+	r := New()
+	d := viewmodel.AgentKeyData{
+		KeyID: "0_0", Type: "agent", AgentType: "claude",
+		Alias: "reviewer", Status: "working", Focused: false,
+		ConnAbbr: "LCL", ConnAbbrColor: "#8B5CF6", WsLabel: "proj",
+	}
+	frames := r.RenderAgentKeyFrames(d)
+	if len(frames) < 2 {
+		t.Fatal("need at least 2 frames for difference test")
+	}
+	// Frame 0 and frame 1 should have different notch positions
+	f0 := decodeSVG(frames[0])
+	f1 := decodeSVG(frames[1])
+	if f0 == f1 {
+		t.Error("consecutive frames should differ (notch rotation)")
+	}
+	// Verify first frame has original notch at 12-o'clock (y=170 or y=170.0)
+	if !strings.Contains(f0, `y1="170"`) && !strings.Contains(f0, `y1="170.0"`) {
+		t.Error("frame 0 should have notch start at y=170")
+	}
+	if !strings.Contains(f0, `y2="174"`) && !strings.Contains(f0, `y2="174.0"`) {
+		t.Error("frame 0 should have notch end at y=174")
+	}
+}
+
+func TestRenderAgentKeyFrames_Static_Returns1Frame(t *testing.T) {
+	r := New()
+	for _, st := range []string{"done", "idle", "blocked", "unknown"} {
+		d := viewmodel.AgentKeyData{
+			KeyID: "0_0", Type: "agent", AgentType: "pi",
+			Alias: "agent-" + st, Status: st,
+			ConnAbbr: "DEV", ConnAbbrColor: "#888", WsLabel: "main",
+		}
+		frames := r.RenderAgentKeyFrames(d)
+		if len(frames) != 1 {
+			t.Errorf("%s frames: got %d, want 1", st, len(frames))
+		}
+		// Static frame should equal RenderAgentKey output
+		expected := r.RenderAgentKey(d)
+		if frames[0] != expected {
+			t.Errorf("%s: RenderAgentKeyFrames != RenderAgentKey", st)
+		}
+	}
+}
+
+// ─── rotatePoint pure math ──────────────────────────────────────
+
+func TestRotatePoint_NoRotation(t *testing.T) {
+	x, y := rotatePoint(180, 170, 180, 180, 0)
+	if x != 180 || y != 170 {
+		t.Errorf("0° rotation: got (%.1f, %.1f), want (180, 170)", x, y)
+	}
+}
+
+func TestRotatePoint_90Deg(t *testing.T) {
+	// (180, 170) rotated 90° around (180, 180) → (190, 180)
+	x, y := rotatePoint(180, 170, 180, 180, 90)
+	if math.Abs(x-190) > 0.01 || math.Abs(y-180) > 0.01 {
+		t.Errorf("90° rotation: got (%.1f, %.1f), want (190, 180)", x, y)
+	}
+}
+
+func TestRotatePoint_180Deg(t *testing.T) {
+	// (180, 170) rotated 180° around (180, 180) → (180, 190)
+	x, y := rotatePoint(180, 170, 180, 180, 180)
+	if math.Abs(x-180) > 0.01 || math.Abs(y-190) > 0.01 {
+		t.Errorf("180° rotation: got (%.1f, %.1f), want (180, 190)", x, y)
+	}
+}
+
+func TestRotatePoint_270Deg(t *testing.T) {
+	// (180, 170) rotated 270° around (180, 180) → (170, 180)
+	x, y := rotatePoint(180, 170, 180, 180, 270)
+	if math.Abs(x-170) > 0.01 || math.Abs(y-180) > 0.01 {
+		t.Errorf("270° rotation: got (%.1f, %.1f), want (170, 180)", x, y)
+	}
+}
+
+func TestRotatePoint_CenterStays(t *testing.T) {
+	x, y := rotatePoint(100, 100, 100, 100, 45)
+	if x != 100 || y != 100 {
+		t.Errorf("center rotation: got (%.1f, %.1f), want (100, 100)", x, y)
+	}
+}
+
+func TestRotatePoint_FullCycle(t *testing.T) {
+	x, y := rotatePoint(180, 170, 180, 180, 360)
+	if math.Abs(x-180) > 0.01 || math.Abs(y-170) > 0.01 {
+		t.Errorf("360° rotation: got (%.1f, %.1f), want (180, 170)", x, y)
+	}
+}
+
+// ─── rotateStatusIconSVG ────────────────────────────────────────
+
+func TestRotateStatusIconSVG_Frame0_EqualsOriginal(t *testing.T) {
+	icon := StatusIcons()["working"]
+	got := rotateStatusIconSVG("working", icon, 0, 8)
+	// Frame 0 should match original icon (no rotation)
+	if got != icon {
+		t.Errorf("frame 0: got %q, want original %q", got, icon)
+	}
+}
+
+func TestRotateStatusIconSVG_NonWorking_Unchanged(t *testing.T) {
+	for _, st := range []string{"done", "idle", "blocked", "unknown"} {
+		icon := StatusIcons()[st]
+		got := rotateStatusIconSVG(st, icon, 0, 1)
+		if got != icon {
+			t.Errorf("%s: should be unchanged, got %q, want %q", st, got, icon)
+		}
+	}
+}
+
+func TestRotateStatusIconSVG_StaticStatus_ReturnsInput(t *testing.T) {
+	icon := "<some icon/>"
+	got := rotateStatusIconSVG("done", icon, 0, 1)
+	if got != icon {
+		t.Errorf("static: got %q, want %q", got, icon)
+	}
+}
+
+func TestRotateStatusIconSVG_Working_Frame2_NotchAtRight(t *testing.T) {
+	icon := StatusIcons()["working"]
+	got := rotateStatusIconSVG("working", icon, 2, 8)
+	// Frame 2 = 90° for 8-frame cycle → notch at ~(190, 180)
+	if !strings.Contains(got, `x1="190.0"`) {
+		t.Errorf("frame 2: notch should be at right side (x≈190), got: %s", got)
+	}
+}
+
+func TestRotateStatusIconSVG_Working_Frame4_NotchAtBottom(t *testing.T) {
+	icon := StatusIcons()["working"]
+	got := rotateStatusIconSVG("working", icon, 4, 8)
+	// Frame 4 = 180° → notch at bottom: (180, 190) → (180, 186)
+	if !strings.Contains(got, `y1="190.0"`) {
+		t.Errorf("frame 4: notch start should be at bottom (y≈190), got: %s", got)
+	}
+}
+
+func TestRenderAgentKeyFrame_TwoLineWorkspace(t *testing.T) {
+	r := New()
+	d := viewmodel.AgentKeyData{
+		KeyID: "0_0", Type: "agent", AgentType: "pi",
+		Alias: "review", Status: "working",
+		ConnAbbr: "LCL", ConnAbbrColor: "#4ADE80",
+		WsLabel:        "api-server",
+		StatusDuration: "5m",
+	}
+	// Frame with two-line workspace should include both workspace parts
+	frame := decodeSVG(r.RenderAgentKeyFrame(d, 1, 8))
+	if !strings.Contains(frame, "api") || !strings.Contains(frame, "server") {
+		t.Errorf("two-line animated frame should show both workspace parts, got: %s", frame)
+	}
+}
+
+func TestRenderAgentKeyFrames_AllAnimatedFramesValidSVGs(t *testing.T) {
+	r := New()
+	d := viewmodel.AgentKeyData{
+		KeyID: "0_0", Type: "agent", AgentType: "opencode",
+		Alias: "coder", Status: "working",
+		ConnAbbr: "PRD", ConnAbbrColor: "#A855F7", WsLabel: "main",
+	}
+	frames := r.RenderAgentKeyFrames(d)
+	for i, f := range frames {
+		if !strings.HasPrefix(f, "data:image/svg+xml;base64,") {
+			t.Errorf("frame %d: missing data URI prefix", i)
+		}
+		svg := decodeSVG(f)
+		if !strings.Contains(svg, "<svg") {
+			t.Errorf("frame %d: not an SVG", i)
+		}
+		// Verify notch is present (original or rotated format)
+		hasLine := strings.Contains(svg, `x1="`) && strings.Contains(svg, `y1="`)
+		if !hasLine {
+			t.Errorf("frame %d: missing notch line element", i)
+		}
 	}
 }

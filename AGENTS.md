@@ -88,7 +88,8 @@ herdr-deck (50ms render)
   ├── displaymodel.Builder (ViewState → Model)
   ├── viewmodel.Adapt (Model → 14 KeyCommand)
   ├── render (SVG)
-  ├── deckclient (SVG→PNG→WebSocket → UlanziDeck)
+  ├── deckclient (ImageCache → SVG→PNG → WebSocket → UlanziDeck)
+  │     └── 3层: latestByKey(同键跳过) / LRU(跨键复用) / SVG→PNG(转换)
   └── profile (D200X profile auto-create)
 
   ▼

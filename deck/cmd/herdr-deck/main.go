@@ -89,7 +89,6 @@ var (
 	ctrl     *controller.Controller
 	sysColl  *sysstats.Collector
 	sub      *subscriber.Subscriber
-	kht      *deckclient.KeyHashTracker
 	lastHash string
 )
 
@@ -179,7 +178,6 @@ func runMain(cmd *cobra.Command, args []string) error {
 	// Warmup: call Collect once to establish baseline so the first
 	// ticker-driven collection produces real CPU delta, not 0%%.
 	sysColl.Collect()
-	kht = deckclient.NewKeyHashTracker()
 
 	// ── Connect to UlanziDeck ────────────────────────────
 	dc = deckclient.New(deckclient.Options{
@@ -294,7 +292,7 @@ func messagePump() {
 				log.Debug().Int("keys", len(ka)).Msg("re-seeded key actions")
 			}
 		}
-		kht.Reset()
+		dc.ResetImageCache()
 		ctrl.MarkDirty()
 	}
 }
@@ -303,43 +301,47 @@ func renderAll(m displaymodel.Model) {
 	kd := viewmodel.Adapt(m)
 	offline := fm.Health() == fleet.HealthOffline
 
-	for i, k := range kd {
-		var svg string
-		switch {
-		case k.Agent != nil:
-			if offline {
-				a := *k.Agent
-				a.Status = "offline"
-				svg = ir.RenderAgentKey(a)
-			} else {
-				svg = ir.RenderAgentKey(*k.Agent)
-			}
-		case k.NavAll != nil:
-			svg = ir.RenderNavAll(*k.NavAll)
-		case k.NavMac != nil:
-			svg = ir.RenderNavMachine(*k.NavMac)
-		case k.NavSpc != nil:
-			svg = ir.RenderNavSpace(*k.NavSpc)
-		case k.Stats != nil:
-			if offline {
-				s := *k.Stats
-				s.Stats = protocol.AgentStats{} // zero stats when offline
-				svg = ir.RenderStatsKey(s)
-			} else {
-				svg = ir.RenderStatsKey(*k.Stats)
-			}
-		default:
-			svg = ir.RenderEmptyKey()
-		}
-
-		if !kht.CheckAndUpdate(i, svg) {
+	for _, k := range kd {
+		pk := physKeyFromID(keyCommandID(k))
+		if dc == nil || !dc.IsConnected() {
 			continue
 		}
 
-		pk := physKeyFromID(keyCommandID(k))
-		if dc != nil && dc.IsConnected() {
-			if err := dc.SetKeyImage(pk, svg, pk == "3_2"); err != nil {
+		switch {
+		case k.Agent != nil:
+			a := *k.Agent
+			if offline {
+				a.Status = "offline"
+			}
+			svg := ir.RenderAgentKey(a)
+			if err := dc.SetKeyImage(pk, svg, false); err != nil {
 				log.Error().Err(err).Str("key", pk).Msg("set key image failed")
+			}
+		case k.NavAll != nil:
+			if err := dc.SetKeyImage(pk, ir.RenderNavAll(*k.NavAll), false); err != nil {
+				log.Error().Err(err).Str("key", pk).Msg("set nav key failed")
+			}
+		case k.NavMac != nil:
+			if err := dc.SetKeyImage(pk, ir.RenderNavMachine(*k.NavMac), false); err != nil {
+				log.Error().Err(err).Str("key", pk).Msg("set nav key failed")
+			}
+		case k.NavSpc != nil:
+			if err := dc.SetKeyImage(pk, ir.RenderNavSpace(*k.NavSpc), false); err != nil {
+				log.Error().Err(err).Str("key", pk).Msg("set nav key failed")
+			}
+		case k.Stats != nil:
+			svg := ir.RenderStatsKey(*k.Stats)
+			if offline {
+				s := *k.Stats
+				s.Stats = protocol.AgentStats{}
+				svg = ir.RenderStatsKey(s)
+			}
+			if err := dc.SetKeyImage(pk, svg, true); err != nil {
+				log.Error().Err(err).Str("key", pk).Msg("set stats key failed")
+			}
+		default:
+			if err := dc.SetKeyImage(pk, ir.RenderEmptyKey(), false); err != nil {
+				log.Error().Err(err).Str("key", pk).Msg("set empty key failed")
 			}
 		}
 	}

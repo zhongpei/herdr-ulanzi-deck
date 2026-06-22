@@ -8,6 +8,7 @@ package render
 import (
 	"encoding/base64"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/herdr-deck/herdrdeck/deck/internal/viewmodel"
@@ -42,12 +43,22 @@ func New() *Renderer {
 //	└──────────────────────┘
 //	Remaining bg = status color + black 0.15 overlay
 func (r *Renderer) RenderAgentKey(d viewmodel.AgentKeyData) string {
+	return r.renderAgentKeySVG(d, r.statusIconFor(d.Status))
+}
+
+func (r *Renderer) statusIconFor(status string) string {
+	icon := r.statusIcons[status]
+	if icon == "" {
+		icon = r.statusIcons["unknown"]
+	}
+	return icon
+}
+
+// renderAgentKeySVG is the shared SVG template for agent keys.
+// statusIconSVG is the SVG fragment for the status indicator icon.
+func (r *Renderer) renderAgentKeySVG(d viewmodel.AgentKeyData, statusIconSVG string) string {
 	agentColor := lookupColor(d.AgentType, AgentColors, "#6B7280")
 	statusColor := lookupColor(d.Status, StatusColors, "#95A5A6")
-	statusIcon := r.statusIcons[d.Status]
-	if statusIcon == "" {
-		statusIcon = r.statusIcons["unknown"]
-	}
 	alias := escapeXML(d.Alias)
 	agentName := escapeXML(d.AgentType)
 	machineAbbr := escapeXML(d.ConnAbbr)
@@ -105,7 +116,7 @@ func (r *Renderer) RenderAgentKey(d viewmodel.AgentKeyData) string {
 			agentName,
 			machineAbbr,
 			displayAlias,
-			statusIcon,
+			statusIconSVG,
 			wsLine1,
 			durStr,
 		)
@@ -141,7 +152,7 @@ func (r *Renderer) RenderAgentKey(d viewmodel.AgentKeyData) string {
 			agentName,
 			machineAbbr,
 			displayAlias,
-			statusIcon,
+			statusIconSVG,
 			wsLine1,
 			wsLine2,
 			durStr,
@@ -149,6 +160,81 @@ func (r *Renderer) RenderAgentKey(d viewmodel.AgentKeyData) string {
 	}
 
 	return toDataURI(svg)
+}
+
+// ─── Animated agent key frames ──────────────────────────────────
+
+// AnimationFrames returns the number of frames and delay in milliseconds
+// for a given agent status. Returns (1, 0) for static statuses.
+func AnimationFrames(status string) (frames int, delayMs int) {
+	switch status {
+	case "working":
+		return 8, 120
+	default:
+		return 1, 0
+	}
+}
+
+// RenderAgentKeyFrame returns an SVG data URI for a single animation frame
+// of an agent key status icon. totalFrames controls the animation cycle length.
+// For static statuses (frame count ≤ 1), it delegates to RenderAgentKey.
+func (r *Renderer) RenderAgentKeyFrame(d viewmodel.AgentKeyData, frame, totalFrames int) string {
+	icon := r.statusIconFor(d.Status)
+	animated := rotateStatusIconSVG(d.Status, icon, frame, totalFrames)
+	return r.renderAgentKeySVG(d, animated)
+}
+
+// RenderAgentKeyFrames returns all animation frame SVGs for an agent key.
+// Returns a single-element slice for static statuses.
+func (r *Renderer) RenderAgentKeyFrames(d viewmodel.AgentKeyData) []string {
+	frames, _ := AnimationFrames(d.Status)
+	if frames <= 1 {
+		return []string{r.RenderAgentKey(d)}
+	}
+	result := make([]string, frames)
+	for i := 0; i < frames; i++ {
+		result[i] = r.RenderAgentKeyFrame(d, i, frames)
+	}
+	return result
+}
+
+// rotateStatusIconSVG returns the SVG status icon content with rotation
+// applied for the given animation frame. The rotation is computed as
+// coordinate changes in the SVG output (not via SVG transform), since the
+// hardware renderer does not support transform attributes.
+//
+// Currently animated: "working" (rotating spinner notch around center 180,180).
+// Other statuses are returned unchanged.
+func rotateStatusIconSVG(status, icon string, frame, totalFrames int) string {
+	if totalFrames <= 1 {
+		return icon
+	}
+	if status != "working" {
+		return icon
+	}
+	if frame == 0 {
+		return icon
+	}
+	// The working spinner is:
+	//   <circle cx="180" cy="180" r="8" fill="none" stroke="white" stroke-width="3"/>
+	//   <line x1="180" y1="170" x2="180" y2="174" stroke="white" stroke-width="3" stroke-linecap="round"/>
+	// The notch (line) rotates around center (180, 180).
+	angleDeg := float64(frame) * 360.0 / float64(totalFrames)
+	x1, y1 := rotatePoint(180, 170, 180, 180, angleDeg)
+	x2, y2 := rotatePoint(180, 174, 180, 180, angleDeg)
+	return fmt.Sprintf(`<circle cx="180" cy="180" r="8" fill="none" stroke="white" stroke-width="3"/>
+<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="white" stroke-width="3" stroke-linecap="round"/>`,
+		x1, y1, x2, y2)
+}
+
+// rotatePoint rotates point (x, y) around center (cx, cy) by angleDeg degrees.
+func rotatePoint(x, y, cx, cy, angleDeg float64) (float64, float64) {
+	rad := angleDeg * math.Pi / 180.0
+	cos := math.Cos(rad)
+	sin := math.Sin(rad)
+	dx := x - cx
+	dy := y - cy
+	return cx + dx*cos - dy*sin, cy + dx*sin + dy*cos
 }
 
 // ─── ALL button (K11) ──────────────────────────────────────

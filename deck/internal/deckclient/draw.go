@@ -3,12 +3,190 @@ package deckclient
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"image/color"
+	"image/color/palette"
+	"image/draw"
+	"image/gif"
 	"strings"
 
 	"github.com/tdewolff/canvas"
 	"github.com/tdewolff/canvas/renderers"
+	"github.com/tdewolff/canvas/renderers/rasterizer"
 )
+
+// SVGToGIF renders multiple SVG frames as an animated GIF.
+// Each frame is rendered at the given width×height resolution.
+// delaysMs[i] is the per-frame delay in milliseconds.
+// Returns the GIF binary data.
+func SVGToGIF(frames [][]byte, width, height int, delaysMs []int) ([]byte, error) {
+	if len(frames) == 0 {
+		return nil, fmt.Errorf("no frames to encode")
+	}
+	if len(delaysMs) != len(frames) {
+		return nil, fmt.Errorf("delay count %d must match frame count %d", len(delaysMs), len(frames))
+	}
+
+	out := &gif.GIF{}
+	for i, svgData := range frames {
+		svgStr := string(svgData)
+		svgStr = strings.TrimSpace(svgStr)
+		svgStr = strings.TrimPrefix(svgStr, `<?xml version="1.0" encoding="UTF-8"?>`)
+		svgStr = strings.TrimSpace(svgStr)
+
+		if !strings.HasPrefix(svgStr, "<svg") {
+			return nil, fmt.Errorf("frame %d: not an SVG document", i)
+		}
+
+		// Parse viewBox to compute scale
+		svgW := 200.0
+		svgH := 200.0
+		vb := extractStr(svgStr, "viewBox")
+		if vb != "" {
+			var x0, y0, vw, vh float64
+			if n, _ := fmt.Sscanf(vb, "%f %f %f %f", &x0, &y0, &vw, &vh); n == 4 {
+				svgW = vw
+				svgH = vh
+			}
+		}
+
+		scaleX := float64(width) / svgW
+		scaleY := float64(height) / svgH
+
+		rgba, err := svgToRGBA(svgStr, width, height, scaleX, scaleY)
+		if err != nil {
+			return nil, fmt.Errorf("frame %d: %w", i, err)
+		}
+
+		// Quantize RGBA to paletted (nearest-color, no dithering)
+		palettedImg := image.NewPaletted(rgba.Bounds(), palette.Plan9)
+		draw.Draw(palettedImg, palettedImg.Bounds(), rgba, image.Point{}, draw.Src)
+
+		out.Image = append(out.Image, palettedImg)
+		// Convert ms to GIF centiseconds (cs = ms / 10)
+		out.Delay = append(out.Delay, delaysMs[i]/10)
+	}
+
+	if len(out.Image) > 0 {
+		out.Disposal = make([]byte, len(out.Image))
+		out.Disposal[0] = gif.DisposalNone
+		for i := 1; i < len(out.Image); i++ {
+			out.Disposal[i] = gif.DisposalBackground
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := gif.EncodeAll(&buf, out); err != nil {
+		return nil, fmt.Errorf("gif encode: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// svgToRGBA renders SVG content to an RGBA image using the canvas rasterizer.
+// This is the same rendering as renderDirectPNG but outputs an image directly
+// (no PNG round-trip), useful for GIF frame encoding.
+func svgToRGBA(svg string, width, height int, scaleX, scaleY float64) (*image.RGBA, error) {
+	c := canvas.New(float64(width), float64(height))
+
+	// Draw rectangles (back to front)
+	rects := parseRectElements(svg)
+	for _, r := range rects {
+		fill := parseHexA(r.fill, r.opacity)
+		py := float64(height) - (r.y+r.h)*scaleY
+		px := r.x * scaleX
+		pw := r.w * scaleX
+		ph := r.h * scaleY
+
+		var path *canvas.Path
+		if r.rx > 0 {
+			prx := r.rx * scaleX
+			path = canvas.RoundedRectangle(pw, ph, prx)
+		} else {
+			path = canvas.Rectangle(pw, ph)
+		}
+		path = path.Translate(px, py)
+
+		style := canvas.Style{
+			Fill: canvas.Paint{Color: fill},
+		}
+		c.RenderPath(path, style, canvas.Identity)
+	}
+
+	// Draw text
+	const px2pt = 72.0 / 25.4
+	texts := parseTextElements(svg)
+	for _, t := range texts {
+		px := t.x * scaleX
+		py := float64(height) - t.y*scaleY
+		fontPt := t.size * scaleX * px2pt
+
+		fillColor := parseHex(t.fill)
+		fontStyle := canvas.FontRegular
+		var weightVal int
+		if _, err := fmt.Sscanf(t.fontWeight, "%d", &weightVal); err == nil && weightVal >= 700 {
+			fontStyle = canvas.FontBold
+		}
+		freshFace := loadFontWithColor(fontPt, fontStyle, fillColor)
+
+		halign := canvas.Left
+		if t.anchor == "middle" {
+			halign = canvas.Center
+		} else if t.anchor == "end" {
+			halign = canvas.Right
+		}
+
+		text := canvas.NewTextLine(freshFace, emojiFilter(t.content), halign)
+
+		if fontStyle == canvas.FontBold {
+			c.RenderText(text, canvas.Identity.Translate(px-1, py))
+			c.RenderText(text, canvas.Identity.Translate(px+1, py))
+		} else {
+			c.RenderText(text, canvas.Identity.Translate(px, py))
+		}
+	}
+
+	// Draw polylines
+	polylines := parsePolylineElements(svg)
+	for _, p := range polylines {
+		if len(p.points) < 4 {
+			continue
+		}
+		path := &canvas.Path{}
+		px0 := p.points[0] * scaleX
+		py0 := float64(height) - p.points[1]*scaleY
+		path.MoveTo(px0, py0)
+		for i := 2; i+1 < len(p.points); i += 2 {
+			px := p.points[i] * scaleX
+			py := float64(height) - p.points[i+1]*scaleY
+			path.LineTo(px, py)
+		}
+		style := buildStrokeStyle(p.stroke, p.fill, p.opacity, p.strokeWidth*scaleX, p.linecap, p.linejoin)
+		c.RenderPath(path, style, canvas.Identity)
+	}
+
+	// Draw lines
+	lines := parseLineElements(svg)
+	for _, l := range lines {
+		path := &canvas.Path{}
+		path.MoveTo(l.x1*scaleX, float64(height)-l.y1*scaleY)
+		path.LineTo(l.x2*scaleX, float64(height)-l.y2*scaleY)
+		style := buildStrokeStyle(l.stroke, "none", 1.0, l.strokeWidth*scaleX, l.linecap, "")
+		c.RenderPath(path, style, canvas.Identity)
+	}
+
+	// Draw circles
+	circles := parseCircleElements(svg)
+	for _, ci := range circles {
+		px := ci.cx * scaleX
+		py := float64(height) - ci.cy*scaleY
+		pr := ci.r * scaleX
+		path := canvas.Circle(pr).Translate(px, py)
+		style := buildStrokeStyle(ci.stroke, ci.fill, 1.0, ci.strokeWidth*scaleX, "", "")
+		c.RenderPath(path, style, canvas.Identity)
+	}
+
+	return rasterizer.Draw(c, canvas.DPMM(1), canvas.DefaultColorSpace), nil
+}
 
 // svgToPNG is an internal alias
 func svgToPNG(svgData []byte, width, height int) ([]byte, error) {
@@ -311,6 +489,31 @@ func parseTextElements(svg string) []textInfo {
 
 // ─── Font ─────────────────────────────────────────────────────
 
+// sharedFontFamily is initialized once at package init and reused
+// for all font face creation. FontFamily.LoadSystemFont is expensive
+// (CoreText font loading on macOS), so doing it once instead of per-
+// render cycle eliminates the 1.5GB+ physical footprint on macOS.
+var sharedFontFamily *canvas.FontFamily
+
+func init() {
+	sharedFontFamily = canvas.NewFontFamily("sans-serif")
+	// Load all 4 style combinations: regular, bold, italic, bold-italic.
+	// FontFamily.fonts is a map[Style]*Font, so each LoadSystemFont
+	// replaces the previous font for that style. The LAST font loaded
+	// for each style is used for glyph lookups.
+	styles := []canvas.FontStyle{
+		canvas.FontRegular,
+		canvas.FontBold,
+		canvas.FontItalic,
+		canvas.FontBold | canvas.FontItalic,
+	}
+	for _, style := range styles {
+		for _, name := range fontNames() {
+			_ = sharedFontFamily.LoadSystemFont(name, style)
+		}
+	}
+}
+
 var fontCache = make(map[string]*canvas.FontFace)
 
 func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
@@ -318,15 +521,7 @@ func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
 	if f, ok := fontCache[key]; ok {
 		return f, nil
 	}
-	family := canvas.NewFontFamily("sans-serif")
-	// Load fonts in priority order. FontFamily.fonts is a map[Style]*Font,
-	// so each successful LoadSystemFont overwrites the previous one for the
-	// same style. The LAST font loaded is the one used for all glyph lookups.
-	// We order names so the most broadly covering font comes last.
-	for _, name := range fontNames() {
-		_ = family.LoadSystemFont(name, style)
-	}
-	face := family.Face(size, color.Black, style)
+	face := sharedFontFamily.Face(size, color.Black, style)
 	fontCache[key] = face
 	return face, nil
 }
@@ -334,18 +529,14 @@ func loadFont(size float64, style canvas.FontStyle) (*canvas.FontFace, error) {
 var fontColorCache = make(map[string]*canvas.FontFace)
 
 // loadFontWithColor creates a new font face with the specified fill color.
-// Cached by size + style + RGBA to avoid repeated LoadSystemFont calls.
+// Cached by size + style + RGBA to avoid repeated Face allocations.
 func loadFontWithColor(size float64, style canvas.FontStyle, fill color.Color) *canvas.FontFace {
 	rgba := color.RGBAModel.Convert(fill).(color.RGBA)
 	key := fmt.Sprintf("%.1f-%d-%02x%02x%02x%02x", size, style, rgba.R, rgba.G, rgba.B, rgba.A)
 	if f, ok := fontColorCache[key]; ok {
 		return f
 	}
-	family := canvas.NewFontFamily("sans-serif")
-	for _, name := range fontNames() {
-		_ = family.LoadSystemFont(name, style)
-	}
-	face := family.Face(size, fill, style)
+	face := sharedFontFamily.Face(size, fill, style)
 	fontColorCache[key] = face
 	return face
 }

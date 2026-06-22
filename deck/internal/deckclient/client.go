@@ -7,8 +7,10 @@ package deckclient
 
 import (
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -55,6 +57,7 @@ type Client struct {
 	readyKeys  bool
 	mu         sync.RWMutex
 	writeMu    sync.Mutex
+	imageCache *ImageCache
 
 	onAdd     AddHandler
 	onKeyDown KeyDownHandler
@@ -73,6 +76,7 @@ func New(opts Options, onAdd AddHandler, onKeyDown KeyDownHandler) *Client {
 		keyActions: make(map[string]string),
 		onAdd:      onAdd,
 		onKeyDown:  onKeyDown,
+		imageCache: NewImageCache(),
 	}
 	if c.onAdd == nil {
 		c.onAdd = func(_, _ string) {}
@@ -216,6 +220,8 @@ func (c *Client) SeedKeyActions(kv map[string]string) {
 }
 
 // SetKeyImage sends a state command for one key.
+// Uses ImageCache to skip SVG→PNG conversion when the same SVG
+// content was recently rendered for any physical key.
 func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 	w := 196
 	if wide {
@@ -223,6 +229,20 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 	}
 	h := 196
 
+	hash := hashSVG(svgDataURI, w)
+
+	// Layer 1: same physical key, same SVG → hardware already has it
+	if entry, ok := c.imageCache.GetByKey(key); ok && entry.SVGHash == hash {
+		return nil
+	}
+
+	// Layer 2: LRU hit → reuse cached PNG (cross-key or reconnect reuse)
+	if dataURI, ok := c.imageCache.GetLRU(hash); ok {
+		c.imageCache.PutByKey(key, hash, dataURI)
+		return c.sendCached(key, dataURI)
+	}
+
+	// Layer 3: cache miss → convert SVG→PNG
 	b64 := svgDataURI
 	prefixLen := len("data:image/svg+xml;base64,")
 	if len(b64) > prefixLen && b64[:prefixLen] == "data:image/svg+xml;base64," {
@@ -241,6 +261,10 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 	pngBase64 := base64.StdEncoding.EncodeToString(pngData)
 	dataURI := "data:image/png;base64," + pngBase64
 
+	// Store in both caches
+	c.imageCache.PutByKey(key, hash, dataURI)
+	c.imageCache.PutLRU(hash, dataURI)
+
 	c.mu.RLock()
 	actionID := c.keyActions[key]
 	c.mu.RUnlock()
@@ -250,6 +274,23 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 		return nil
 	}
 
+	return c.sendKeyImageDataURI(key, actionID, dataURI)
+}
+
+// sendCached sends a previously rendered PNG dataURI for a key.
+// No SVG→PNG conversion needed.
+func (c *Client) sendCached(key, dataURI string) error {
+	c.mu.RLock()
+	actionID := c.keyActions[key]
+	c.mu.RUnlock()
+	if actionID == "" {
+		return nil
+	}
+	return c.sendKeyImageDataURI(key, actionID, dataURI)
+}
+
+// sendKeyImageDataURI sends the state command with the given PNG data URI.
+func (c *Client) sendKeyImageDataURI(key, actionID, dataURI string) error {
 	return c.send("state", map[string]any{
 		"param": map[string]any{
 			"statelist": []map[string]any{
@@ -265,6 +306,99 @@ func (c *Client) SetKeyImage(key, svgDataURI string, wide bool) error {
 			},
 		},
 	})
+}
+
+// hashSVG computes a 64-bit FNV-1a hash of the SVG data URI combined
+// with the render width, to distinguish identical SVGs at different sizes.
+func hashSVG(svgDataURI string, width int) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(svgDataURI))
+	// Include width so a 196px and 392px render of the same SVG differ.
+	var wb [4]byte
+	wb[0] = byte(width)
+	wb[1] = byte(width >> 8)
+	wb[2] = byte(width >> 16)
+	wb[3] = byte(width >> 24)
+	h.Write(wb[:])
+	return h.Sum64()
+}
+
+// ResetImageCache clears all cached rendered images.
+// Call after reconnect to force full re-render.
+func (c *Client) ResetImageCache() {
+	c.imageCache.Reset()
+}
+
+// SetKeyAnimatedImage renders multiple SVG frames as an animated GIF and
+// sends it to a key. K1-K10 support animated GIFs for status indication.
+// svgDataURIs are the SVG frame data URIs (as returned by render.RenderAgentKeyFrames).
+// delaysMs[i] is the per-frame delay in milliseconds.
+func (c *Client) SetKeyAnimatedImage(key string, svgDataURIs []string, delaysMs []int, wide bool) error {
+	if len(svgDataURIs) == 0 {
+		return nil
+	}
+
+	w := 196
+	if wide {
+		w = 392
+	}
+	h := 196
+
+	hash := hashAnimatedSVG(svgDataURIs, w)
+
+	// Layer 1: same physical key, same animated SVG set → hardware already has it
+	if entry, ok := c.imageCache.GetByKey(key); ok && entry.SVGHash == hash {
+		return nil
+	}
+
+	// Decode all SVG frames from data URIs
+	svgFrames := make([][]byte, len(svgDataURIs))
+	for i, uri := range svgDataURIs {
+		b64 := uri
+		prefixLen := len("data:image/svg+xml;base64,")
+		if len(b64) > prefixLen && b64[:prefixLen] == "data:image/svg+xml;base64," {
+			b64 = b64[prefixLen:]
+		}
+		data, err := base64.StdEncoding.DecodeString(b64)
+		if err != nil {
+			return fmt.Errorf("frame %d base64 decode: %w", i, err)
+		}
+		svgFrames[i] = data
+	}
+
+	// Encode as animated GIF
+	gifData, err := SVGToGIF(svgFrames, w, h, delaysMs)
+	if err != nil {
+		return fmt.Errorf("svg→gif: %w", err)
+	}
+
+	gifBase64 := base64.StdEncoding.EncodeToString(gifData)
+	dataURI := "data:image/gif;base64," + gifBase64
+
+	// Store in by-key cache (skip LRU for animated GIFs — they're status-specific)
+	c.imageCache.PutByKey(key, hash, dataURI)
+
+	c.mu.RLock()
+	actionID := c.keyActions[key]
+	c.mu.RUnlock()
+	if actionID == "" {
+		return nil
+	}
+
+	return c.sendKeyImageDataURI(key, actionID, dataURI)
+}
+
+// hashAnimatedSVG computes a combined 64-bit FNV-1a hash of all SVG frame
+// data URIs and the render width, for cache dedup.
+func hashAnimatedSVG(frameDataURIs []string, width int) uint64 {
+	h := fnv.New64a()
+	for _, uri := range frameDataURIs {
+		h.Write([]byte(uri))
+	}
+	var wb [4]byte
+	binary.LittleEndian.PutUint32(wb[:], uint32(width))
+	h.Write(wb[:])
+	return h.Sum64()
 }
 
 // ─── Send helpers ─────────────────────────────────────────────

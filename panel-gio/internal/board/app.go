@@ -13,6 +13,7 @@ import (
 	"github.com/herdr-deck/herdrdeck/panel-gio/internal/config"
 	"github.com/herdr-deck/herdrdeck/panel-gio/internal/store"
 	"github.com/herdr-deck/herdrdeck/panel-gio/internal/subscriber"
+	"github.com/herdr-deck/herdrdeck/panel-gio/internal/tray"
 	"github.com/herdr-deck/herdrdeck/protocol"
 	"github.com/rs/zerolog/log"
 )
@@ -29,6 +30,8 @@ type App struct {
 	alertRule   *alert.Rule
 	sub         *subscriber.Subscriber
 	cmdPub      *command.Publisher
+	tray        *tray.Tray
+	trayView    uintptr
 	debug       bool
 	lastHB      time.Time
 	offline     bool
@@ -48,6 +51,7 @@ func New(st *store.Store, bld *displaymodel.Builder, sub *subscriber.Subscriber,
 		sub:         sub,
 		alertRule:   rule,
 		cmdPub:      cmdPub,
+		tray:        tray.New(st),
 		debug:       debug,
 		lastHB:      time.Now(),
 		statusSince: make(map[string]time.Time),
@@ -57,6 +61,12 @@ func New(st *store.Store, bld *displaymodel.Builder, sub *subscriber.Subscriber,
 
 func (a *App) Run() error {
 	log.Info().Msg("starting Gio Fleet Board")
+
+	// Start system tray before app.Main() so NSStatusItem is registered
+	// before the Cocoa event loop begins on darwin.
+	a.tray.Start()
+	defer a.tray.Stop()
+
 	go a.gioLoop()
 	app.Main()
 	return nil
@@ -108,6 +118,12 @@ func (a *App) gioLoop() {
 			config.Save(float32(a.curW), float32(a.curH))
 			return
 
+		case app.ViewEvent:
+			if n := nativeViewHandle(e); n != 0 {
+				a.trayView = n
+				a.tray.SetView(n)
+			}
+
 		case app.FrameEvent:
 			now := time.Now()
 			gtx := app.NewContext(&ops, e)
@@ -129,7 +145,9 @@ func (a *App) gioLoop() {
 			durations := a.buildDurations(snap, now)
 			m := a.builder.Build(snap, displaymodel.LocalStats{}, durations)
 
-			a.input.HideWindow = nil
+			a.input.HideWindow = func() {
+				a.tray.Hide()
+			}
 			a.input.Clear()
 			actions := HandleClicks(gtx, a.input, a.store, a.builder)
 			actions = append(actions, HandleKeys(gtx, a.input, a.store, a.builder)...)
