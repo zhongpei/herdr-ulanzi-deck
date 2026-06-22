@@ -23,16 +23,17 @@ type AgentKeyData struct {
 }
 
 // NavAllData describes the K11 ALL/ACT button with system stats overlay.
+// Machines carries the full machine list with health status for GIF animation.
 type NavAllData struct {
-	KeyID         string  `json:"keyId"`
-	Type          string  `json:"type"`
-	Label         string  `json:"label"`
-	Active        bool    `json:"active"`
-	Filtered      bool    `json:"filtered"`
-	CPUPercent    float64 `json:"cpuPercent"`
-	MemoryPercent float64 `json:"memPercent"`
+	KeyID         string                    `json:"keyId"`
+	Type          string                    `json:"type"`
+	Label         string                    `json:"label"`
+	Active        bool                      `json:"active"`
+	Filtered      bool                      `json:"filtered"`
+	CPUPercent    float64                   `json:"cpuPercent"`
+	MemoryPercent float64                   `json:"memPercent"`
+	Machines      []protocol.MachineInfo    `json:"machines,omitempty"`
 }
-
 // NavMachineData describes the K12 machine-cycle button.
 type NavMachineData struct {
 	KeyID        string `json:"keyId"`

@@ -52,6 +52,7 @@ func Adapt(m displaymodel.Model) []KeyCommand {
 			Filtered:      m.NavAll.Filtered,
 			CPUPercent:    m.Stats.CPUPercent,
 			MemoryPercent: m.Stats.MemoryPercent,
+			Machines:      m.Machines,
 		},
 	})
 
