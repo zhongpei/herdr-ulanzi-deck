@@ -307,6 +307,19 @@ func (c *Client) sendKeyImageDataURI(key, actionID, dataURI string) error {
 	})
 }
 
+// SetKeySVGDirect sends an SVG data URI directly to a hardware key
+// without converting to PNG. Use for keys where SVG text quality matters
+// (e.g. K14 stats with small text).
+func (c *Client) SetKeySVGDirect(key, svgDataURI string, wide bool) error {
+	c.mu.RLock()
+	actionID := c.keyActions[key]
+	c.mu.RUnlock()
+	if actionID == "" {
+		return nil
+	}
+	return c.sendKeyImageDataURI(key, actionID, svgDataURI)
+}
+
 // hashSVG computes a 64-bit FNV-1a hash of the SVG data URI combined
 // with the render width, to distinguish identical SVGs at different sizes.
 func hashSVG(svgDataURI string, width int) uint64 {

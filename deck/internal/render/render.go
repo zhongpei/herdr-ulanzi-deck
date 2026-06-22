@@ -308,7 +308,7 @@ func (r *Renderer) RenderNavAll(d viewmodel.NavAllData) string {
 			}
 
 			blocks.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="%d" height="%d" rx="6" fill="%s"/>
-  <text x="%d" y="%d" text-anchor="middle" fill="%s" font-family="sans-serif" font-size="12" font-weight="700">%s</text>
+  <text x="%d" y="%d" text-anchor="middle" fill="%s" font-family="sans-serif" font-size="14" font-weight="700">%s</text>
   <text x="%d" y="%d" text-anchor="middle" fill="white" font-family="sans-serif" font-size="24" font-weight="900">%d</text>
 `, x, y, blockW, blockH, machineColor,
 				x+blockW/2, y+22, abbrColor, escapeXML(m.Abbr),
@@ -439,10 +439,10 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		memCol = "#555"
 	}
 
-	inner.WriteString(fmt.Sprintf(`  <text x="20" y="28" fill="white" font-family="sans-serif" font-size="16" font-weight="700">CPU</text>
-  <text x="60" y="28" fill="%s" font-family="sans-serif" font-size="18" font-weight="900">%s</text>
-  <text x="115" y="28" fill="white" font-family="sans-serif" font-size="16" font-weight="700">MEM</text>
-  <text x="155" y="28" fill="%s" font-family="sans-serif" font-size="18" font-weight="900">%s</text>
+	inner.WriteString(fmt.Sprintf(`  <text x="20" y="28" fill="white" font-family="sans-serif" font-size="20" font-weight="700">CPU</text>
+  <text x="60" y="28" fill="%s" font-family="sans-serif" font-size="22" font-weight="900">%s</text>
+  <text x="120" y="28" fill="white" font-family="sans-serif" font-size="20" font-weight="700">MEM</text>
+  <text x="160" y="28" fill="%s" font-family="sans-serif" font-size="22" font-weight="900">%s</text>
 `, cpuCol, cpuPct, memCol, memPct))
 
 	// Status summary inline
@@ -455,18 +455,18 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		{"I", stats.Idle, "#7F8C8D"},
 		{"?", stats.Unknown, "#95A5A6"},
 	}
-	xPos := 220
+	xPos := 230
 	for _, item := range statusItems {
 		if item.count == 0 {
 			continue
 		}
-		inner.WriteString(fmt.Sprintf(`  <text x="%d" y="28" fill="%s" font-family="sans-serif" font-size="16" font-weight="900">%s</text>
-  <text x="%d" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
-`, xPos, item.color, item.label, xPos+18, item.count))
-		xPos += 48
+		inner.WriteString(fmt.Sprintf(`  <text x="%d" y="28" fill="%s" font-family="sans-serif" font-size="18" font-weight="900">%s</text>
+  <text x="%d" y="28" fill="white" font-family="sans-serif" font-size="20" font-weight="900">%d</text>
+`, xPos, item.color, item.label, xPos+20, item.count))
+		xPos += 55
 	}
 
-	inner.WriteString(`  <line x1="0" y1="38" x2="400" y2="38" stroke="#444" stroke-width="1"/>
+	inner.WriteString(`  <line x1="0" y1="42" x2="400" y2="42" stroke="#444" stroke-width="1"/>
 `)
 
 	// ── Space blocks ──
@@ -475,7 +475,7 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		inner.WriteString(`  <text x="200" y="110" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="18" font-weight="400">---</text>`)
 	} else {
 		blockW := 120
-		blockH := 150
+		blockH := 145
 		gap := 10
 		blockCount := len(spaces)
 		if blockCount > 3 {
@@ -487,7 +487,7 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		for i := 0; i < blockCount && i < len(spaces); i++ {
 			sp := spaces[i]
 			x := startX + i*(blockW+gap)
-			y := 44
+			y := 48
 
 			spaceLabel := sp.Label
 			if len(spaceLabel) > 8 {
@@ -495,10 +495,10 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 			}
 
 			inner.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="%d" height="%d" rx="6" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
-  <text x="%d" y="%d" text-anchor="middle" fill="white" font-family="sans-serif" font-size="12" font-weight="700">%s</text>
-`, x, y, blockW, blockH, x+blockW/2, y+16, escapeXML(spaceLabel)))
+  <text x="%d" y="%d" text-anchor="middle" fill="white" font-family="sans-serif" font-size="14" font-weight="700">%s</text>
+`, x, y, blockW, blockH, x+blockW/2, y+18, escapeXML(spaceLabel)))
 
-			machineY := y + 24
+			machineY := y + 26
 			for mi, mac := range sp.Machines {
 				if mi > 0 {
 					inner.WriteString(fmt.Sprintf(`  <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#333" stroke-width="1"/>
@@ -509,8 +509,8 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 				if macColor == "" {
 					macColor = "#6B7280"
 				}
-				inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="11" font-weight="700">%s</text>
-  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="14" font-weight="900">%d</text>
+				inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="13" font-weight="700">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="16" font-weight="900">%d</text>
 `, x+6, machineY+12, macColor, mac.Abbr, x+blockW-8, machineY+12, mac.Total))
 
 				// Colored status bar
@@ -538,7 +538,7 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 						if segW < 1 {
 							segW = 1
 						}
-						inner.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="%d" height="4" rx="2" fill="%s"/>
+						inner.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="%d" height="5" rx="2" fill="%s"/>
 `, barX, barY, segW, bo.color))
 						barX += segW
 					}
@@ -563,13 +563,13 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 					if cnt == 0 {
 						continue
 					}
-					inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="11" font-weight="900">%s</text>
-  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="11" font-weight="400">%d</text>
+					inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="13" font-weight="900">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="13" font-weight="400">%d</text>
 `, bX, badgeY, bo.color, bo.label, bX+14, badgeY, cnt))
-					bX += 32
+					bX += 36
 				}
 
-				machineY += 52
+				machineY += 56
 			}
 		}
 	}

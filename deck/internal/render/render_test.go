@@ -337,12 +337,12 @@ func TestRenderStatsKey_CPUValue(t *testing.T) {
 	if !strings.Contains(svg, "72%") {
 		t.Error("K14 should show MEM 72%")
 	}
-	// CPU value at x=60, MEM value at x=155 (new layout)
+	// CPU value at x=60, MEM value at x=160 (SVG direct layout)
 	if !strings.Contains(svg, `x="60"`) {
 		t.Error("CPU value should be at x=60")
 	}
-	if !strings.Contains(svg, `x="155"`) {
-		t.Error("MEM value should be at x=155")
+	if !strings.Contains(svg, `x="160"`) {
+		t.Error("MEM value should be at x=160")
 	}
 }
 

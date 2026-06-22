@@ -354,7 +354,7 @@ func renderAll(m displaymodel.Model) {
 				s.Stats = protocol.AgentStats{}
 				svg = ir.RenderStatsKey(s)
 			}
-			if err := dc.SetKeyImage(pk, svg, true); err != nil {
+			if err := dc.SetKeySVGDirect(pk, svg, true); err != nil {
 				log.Error().Err(err).Str("key", pk).Msg("set stats key failed")
 			}
 		default:
