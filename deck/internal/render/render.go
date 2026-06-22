@@ -477,7 +477,7 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 		inner.WriteString(`  <text x="200" y="110" text-anchor="middle" fill="#666" font-family="sans-serif" font-size="18" font-weight="400">---</text>`)
 	} else {
 		rowY := 48
-		rowH := 36
+		rowH := 40
 		maxRows := 4
 
 		for i := 0; i < maxRows && i < len(spaces); i++ {
@@ -488,8 +488,8 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 			if len(label) > 14 {
 				label = label[:14] + ".."
 			}
-			inner.WriteString(fmt.Sprintf(`  <text x="15" y="%d" fill="white" font-family="sans-serif" font-size="15" font-weight="700">%s</text>
-`, rowY+14, escapeXML(label)))
+			inner.WriteString(fmt.Sprintf(`  <text x="15" y="%d" fill="white" font-family="sans-serif" font-size="16" font-weight="700">%s</text>
+`, rowY+16, escapeXML(label)))
 
 			// Machine entries
 			mx := 120

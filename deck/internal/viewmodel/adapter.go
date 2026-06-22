@@ -157,6 +157,27 @@ func Adapt(m displaymodel.Model) []KeyCommand {
 		})
 	}
 
+	// Filter: only keep spaces with active agents (blocked/done/working)
+	var activeSpaces []SpaceStats
+	for _, sp := range spaces {
+		hasActive := false
+		for _, mac := range sp.Machines {
+			for st := range mac.Stats {
+				if st == "blocked" || st == "done" || st == "working" {
+					hasActive = true
+					break
+				}
+			}
+			if hasActive {
+				break
+			}
+		}
+		if hasActive {
+			activeSpaces = append(activeSpaces, sp)
+		}
+	}
+	spaces = activeSpaces
+
 	keys = append(keys, KeyCommand{
 		Stats: &StatsData{
 			KeyID:         "stats",
