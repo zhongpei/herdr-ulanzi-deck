@@ -354,8 +354,20 @@ func renderAll(m displaymodel.Model) {
 				s.Stats = protocol.AgentStats{}
 				svg = ir.RenderStatsKey(s)
 			}
-			if err := dc.SetKeySVGDirect(pk, svg, true); err != nil {
-				log.Error().Err(err).Str("key", pk).Msg("set stats key failed")
+			// Carousel GIF: one frame per active space, 3s each
+			frames := ir.RenderStatsCarouselFrames(*k.Stats)
+			if len(frames) > 1 {
+				delays := make([]int, len(frames))
+				for i := range delays {
+					delays[i] = 3000 // 3s per frame
+				}
+				if err := dc.SetKeyGIFImage(pk, frames, delays, true); err != nil {
+					log.Error().Err(err).Str("key", pk).Msg("set stats carousel failed")
+				}
+			} else {
+				if err := dc.SetKeyImage(pk, svg, true); err != nil {
+					log.Error().Err(err).Str("key", pk).Msg("set stats key failed")
+				}
 			}
 		default:
 			if err := dc.SetKeyImage(pk, ir.RenderEmptyKey(), false); err != nil {

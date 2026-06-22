@@ -361,6 +361,69 @@ func TestRenderStatsKey_CPUZero(t *testing.T) {
 	}
 }
 
+func TestRenderStatsCarouselFrames_ReturnsOnePerSpace(t *testing.T) {
+	r := New()
+	d := viewmodel.StatsData{
+		Stats: protocol.AgentStats{Done: 3, Idle: 2, Working: 1, Blocked: 1},
+		Spaces: []viewmodel.SpaceStats{
+			{Label: "main-proj", Total: 4, Machines: []viewmodel.MachineStats{
+				{Abbr: "LCL", Color: "#4ADE80", Total: 4, Stats: map[string]int{"done": 2, "idle": 2}},
+			}},
+			{Label: "web-app", Total: 1, Machines: []viewmodel.MachineStats{
+				{Abbr: "DEV", Color: "#60A5FA", Total: 1, Stats: map[string]int{"blocked": 1}},
+			}},
+		},
+	}
+	frames := r.RenderStatsCarouselFrames(d)
+	if len(frames) != 2 {
+		t.Fatalf("expected 2 frames, got %d", len(frames))
+	}
+	// Each frame should be a valid SVG
+	for i, f := range frames {
+		if !strings.HasPrefix(f, "data:image/svg+xml;base64,") {
+			t.Errorf("frame %d: missing data URI prefix", i)
+		}
+		svg := decodeSVG(f)
+		if !strings.Contains(svg, "<svg") {
+			t.Errorf("frame %d: not an SVG", i)
+		}
+	}
+	// Frame 0 should show main-proj, frame 1 should show web-app
+	f0 := decodeSVG(frames[0])
+	f1 := decodeSVG(frames[1])
+	if !strings.Contains(f0, "main-proj") {
+		t.Error("frame 0 should show main-proj space")
+	}
+	if !strings.Contains(f1, "web-app") {
+		t.Error("frame 1 should show web-app space")
+	}
+}
+
+func TestRenderStatsCarouselFrame_ShowsPageIndicator(t *testing.T) {
+	r := New()
+	d := viewmodel.StatsData{
+		Stats: protocol.AgentStats{Done: 1, Idle: 1, Working: 1, Blocked: 1},
+		Spaces: []viewmodel.SpaceStats{
+			{Label: "test-space", Total: 2, Machines: []viewmodel.MachineStats{
+				{Abbr: "LCL", Color: "#4ADE80", Total: 2, Stats: map[string]int{"done": 1, "idle": 1}},
+			}},
+		},
+	}
+	frame := decodeSVG(r.RenderStatsCarouselFrame(d, d.Spaces[0], 0, 1))
+	// Should show page indicator
+	if !strings.Contains(frame, "1 / 1") {
+		t.Error("frame should show page indicator '1 / 1'")
+	}
+	// Should show space name
+	if !strings.Contains(frame, "test-space") {
+		t.Error("frame should show space name")
+	}
+	// Should show CPU/MEM
+	if !strings.Contains(frame, "CPU") {
+		t.Error("frame should show CPU")
+	}
+}
+
 func TestEscapeXML(t *testing.T) {
 	tests := []struct {
 		input    string

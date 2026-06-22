@@ -554,6 +554,132 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 </svg>`, inner.String())
 	return toDataURI(svg)
 }
+
+// RenderStatsCarouselFrames returns one SVG frame per active space,
+// for encoding into an animated GIF carousel (type:3).
+// Each frame shows CPU/MEM/stats summary + one space in large text.
+func (r *Renderer) RenderStatsCarouselFrames(d viewmodel.StatsData) []string {
+	spaces := d.Spaces
+	if len(spaces) == 0 {
+		return []string{r.RenderStatsKey(d)}
+	}
+	frames := make([]string, len(spaces))
+	for i, sp := range spaces {
+		frames[i] = r.RenderStatsCarouselFrame(d, sp, i, len(spaces))
+	}
+	return frames
+}
+
+// RenderStatsCarouselFrame returns an SVG frame for ONE space,
+// with large text suitable for 400×200 viewBox → 392×196 PNG.
+func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.SpaceStats, idx, total int) string {
+	var inner strings.Builder
+
+	// ── Top bar: CPU, MEM, status summary ──
+	cpuPct := formatPct(d.CPUPercent)
+	cpuCol := cpuColor(d.CPUPercent)
+	if d.CPUPercent <= 0.01 {
+		cpuPct = "--"
+		cpuCol = "#555"
+	}
+	memPct := formatPct(d.MemoryPercent)
+	memCol := memColor(d.MemoryPercent)
+	if d.MemoryPercent <= 0.01 {
+		memPct = "--"
+		memCol = "#555"
+	}
+
+	inner.WriteString(fmt.Sprintf(`  <text x="15" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="700">CPU</text>
+  <text x="55" y="28" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
+  <text x="110" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="700">MEM</text>
+  <text x="150" y="28" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
+`, cpuCol, cpuPct, memCol, memPct))
+
+	// Status summary
+	xPos := 215
+	statusItems := []struct {
+		label string
+		count int
+		color string
+	}{
+		{"B", d.Stats.Blocked, "#E74C3C"},
+		{"D", d.Stats.Done, "#27AE60"},
+		{"W", d.Stats.Working, "#F39C12"},
+		{"I", d.Stats.Idle, "#7F8C8D"},
+		{"?", d.Stats.Unknown, "#95A5A6"},
+	}
+	for _, item := range statusItems {
+		if item.count == 0 {
+			continue
+		}
+		inner.WriteString(fmt.Sprintf(`  <text x="%d" y="28" fill="%s" font-family="sans-serif" font-size="16" font-weight="900">%s</text>
+  <text x="%d" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
+`, xPos, item.color, item.label, xPos+16, item.count))
+		xPos += 42
+	}
+
+	inner.WriteString(`  <line x1="0" y1="36" x2="400" y2="36" stroke="#444" stroke-width="1"/>
+`)
+
+	// ── Space name (large, centered) ──
+	label := sp.Label
+	if len(label) > 20 {
+		label = label[:20] + ".."
+	}
+	inner.WriteString(fmt.Sprintf(`  <text x="200" y="72" text-anchor="middle" fill="white" font-family="sans-serif" font-size="36" font-weight="700">%s</text>
+`, escapeXML(label)))
+
+	// ── Machine entries ──
+	machineY := 90
+	for _, mac := range sp.Machines {
+		macColor := mac.Color
+		if macColor == "" {
+			macColor = "#6B7280"
+		}
+
+		// Colored square + abbreviation + total
+		inner.WriteString(fmt.Sprintf(`  <rect x="15" y="%d" width="6" height="20" rx="2" fill="%s"/>
+  <text x="28" y="%d" fill="%s" font-family="sans-serif" font-size="18" font-weight="700">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
+`, machineY, macColor, machineY+16, macColor, mac.Abbr, 28+len(mac.Abbr)*10+5, machineY+16, mac.Total))
+
+		// Status badges
+		bX := 140
+		badgeOrder := []struct {
+			key   string
+			label string
+			color string
+		}{
+			{"blocked", "B", "#E74C3C"},
+			{"done", "D", "#27AE60"},
+			{"working", "W", "#F39C12"},
+			{"idle", "I", "#7F8C8D"},
+			{"unknown", "?", "#95A5A6"},
+		}
+		for _, bo := range badgeOrder {
+			cnt := mac.Stats[bo.key]
+			if cnt == 0 {
+				continue
+			}
+			inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="16" font-weight="900">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="16" font-weight="400">%d</text>
+`, bX, machineY+16, bo.color, bo.label, bX+18, machineY+16, cnt))
+			bX += 42
+		}
+
+		machineY += 30
+	}
+
+	// ── Page indicator ──
+	pageText := fmt.Sprintf("%d / %d", idx+1, total)
+	inner.WriteString(fmt.Sprintf(`  <rect x="170" y="185" width="60" height="12" rx="6" fill="#222"/>
+  <text x="200" y="194" text-anchor="middle" fill="#888" font-family="sans-serif" font-size="10" font-weight="400">%s</text>
+`, pageText))
+
+	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">%s
+</svg>`, inner.String())
+	return toDataURI(svg)
+}
 func (r *Renderer) RenderEmptyKey() string {
 	svg := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" rx="8" fill="#2a2a2a" opacity="0.25"/>
