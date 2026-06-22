@@ -287,6 +287,83 @@ func (r *Renderer) RenderNavAll(d viewmodel.NavAllData) string {
 	return toDataURI(svg)
 }
 
+// RenderNavAllFrames returns 8 animated SVG frames for K11 machine status.
+func (r *Renderer) RenderNavAllFrames(d viewmodel.NavAllData) []string {
+	frames := make([]string, 8)
+	for i := 0; i < 8; i++ {
+		frames[i] = r.RenderNavAllFrame(d, i, 8)
+	}
+	return frames
+}
+
+// RenderNavAllFrame returns one animation frame of K11 machine status.
+// Online machines get a green breathing dot (sine-wave opacity 0.3↔1.0).
+// Offline machines get a red blinking dot (square-wave 0.1↔1.0).
+func (r *Renderer) RenderNavAllFrame(d viewmodel.NavAllData, frame, totalFrames int) string {
+	var fill string
+	switch {
+	case !d.Active:
+		fill = "#3a3a3a"
+	case d.Filtered:
+		fill = "#E67E22"
+	default:
+		fill = "#4A90D9"
+	}
+
+	label := d.Label
+	if label == "" {
+		label = "ALL"
+	}
+
+	var body strings.Builder
+	machines := d.Machines
+
+	if len(machines) == 0 {
+		body.WriteString(`<text x="100" y="55" text-anchor="middle" fill="#888" font-family="sans-serif" font-size="14" font-weight="400">---</text>`)
+	} else {
+		spacing := 60
+		totalW := len(machines) * spacing
+		startX := (200-totalW)/2 + 15
+
+		for i, m := range machines {
+			x := startX + i*spacing - 15
+			tx := x + 20
+
+			opacity := 0.3
+			switch m.Health {
+			case "online":
+				phase := float64(frame) * 2.0 * math.Pi / float64(totalFrames)
+				opacity = 0.3 + 0.7*(math.Sin(phase)+1.0)/2.0
+			case "offline":
+				if frame < totalFrames/2 {
+					opacity = 1.0
+				} else {
+					opacity = 0.1
+				}
+			}
+
+			dotColor := "#4ADE80"
+			if m.Health == "offline" {
+				dotColor = "#EF4444"
+			}
+
+			body.WriteString(fmt.Sprintf(
+				`<circle cx="%d" cy="55" r="5" fill="%s" opacity="%.2f"/>
+<text x="%d" y="60" fill="white" font-family="sans-serif" font-size="14" font-weight="700">%s</text>
+`, x, dotColor, opacity, tx, escapeXML(m.Abbr)))
+		}
+	}
+
+	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" rx="8" fill="%[1]s"/>
+  %[2]s
+  <text x="100" y="140" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="36" font-weight="900">%[3]s</text>
+</svg>`, fill, body.String(), label)
+
+	return toDataURI(svg)
+}
+
 // ─── Machine cycle button (K12) ────────────────────────────
 // Background = machine color when active, dark gray when inactive.
 func (r *Renderer) RenderNavMachine(d viewmodel.NavMachineData) string {

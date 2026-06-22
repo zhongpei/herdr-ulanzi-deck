@@ -845,3 +845,93 @@ func TestRenderAgentKeyFrames_AllAnimatedFramesValidSVGs(t *testing.T) {
 		}
 	}
 }
+
+// ─── NavAll animation frames ───────────────────────────────
+
+func TestRenderNavAllFrame_Online_GreenDot(t *testing.T) {
+	r := New()
+	d := viewmodel.NavAllData{
+		Label: "ALL", Active: true,
+		Machines: []protocol.MachineInfo{
+			{Name: "local", Abbr: "LCL", Color: "#4ADE80", Health: "online"},
+		},
+	}
+	svg := decodeSVG(r.RenderNavAllFrame(d, 0, 8))
+	if !strings.Contains(svg, `fill="#4ADE80"`) {
+		t.Error("online machines should have green dot fill")
+	}
+	if !strings.Contains(svg, "LCL") {
+		t.Error("should contain machine abbreviation")
+	}
+}
+
+func TestRenderNavAllFrame_Offline_RedDot(t *testing.T) {
+	r := New()
+	d := viewmodel.NavAllData{
+		Label: "ALL", Active: true,
+		Machines: []protocol.MachineInfo{
+			{Name: "down", Abbr: "OFF", Color: "#EF4444", Health: "offline"},
+		},
+	}
+	svg := decodeSVG(r.RenderNavAllFrame(d, 0, 8))
+	if !strings.Contains(svg, `fill="#EF4444"`) {
+		t.Error("offline machines should have red dot fill")
+	}
+}
+
+func TestRenderNavAllFrames_Returns8Frames(t *testing.T) {
+	r := New()
+	d := viewmodel.NavAllData{Label: "ALL", Active: true}
+	frames := r.RenderNavAllFrames(d)
+	if len(frames) != 8 {
+		t.Fatalf("expected 8 frames, got %d", len(frames))
+	}
+	for i, f := range frames {
+		if !strings.HasPrefix(f, "data:image/svg+xml;base64,") {
+			t.Errorf("frame %d: missing data URI prefix", i)
+		}
+	}
+}
+
+func TestRenderNavAllFrames_Frame0AndFrame4Differ(t *testing.T) {
+	r := New()
+	d := viewmodel.NavAllData{
+		Label: "ALL", Active: true,
+		Machines: []protocol.MachineInfo{
+			{Name: "m", Abbr: "M", Color: "#4ADE80", Health: "online"},
+		},
+	}
+	frames := r.RenderNavAllFrames(d)
+	if len(frames) < 2 {
+		t.Fatal("need at least 2 frames")
+	}
+	// Frame 0 and frame 1 should differ (online breathing changes opacity)
+	if frames[0] == frames[1] {
+		t.Error("frame 0 and frame 1 should differ due to animation")
+	}
+}
+
+func TestRenderNavAllFrame_NoMachines_ShowsDash(t *testing.T) {
+	r := New()
+	d := viewmodel.NavAllData{Label: "ALL", Active: true}
+	svg := decodeSVG(r.RenderNavAllFrame(d, 0, 8))
+	if !strings.Contains(svg, "---") {
+		t.Error("no machines should show ---")
+	}
+}
+
+func TestRenderNavAllFrames_MultipleMachines(t *testing.T) {
+	r := New()
+	d := viewmodel.NavAllData{
+		Label: "ALL", Active: true,
+		Machines: []protocol.MachineInfo{
+			{Name: "mac1", Abbr: "M1", Color: "#4ADE80", Health: "online"},
+			{Name: "mac2", Abbr: "M2", Color: "#EF4444", Health: "offline"},
+			{Name: "mac3", Abbr: "M3", Color: "#60A5FA", Health: "online"},
+		},
+	}
+	f0 := decodeSVG(r.RenderNavAllFrame(d, 0, 8))
+	if !strings.Contains(f0, "M1") || !strings.Contains(f0, "M2") || !strings.Contains(f0, "M3") {
+		t.Error("all machine abbreviations should appear")
+	}
+}

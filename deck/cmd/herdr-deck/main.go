@@ -335,8 +335,10 @@ func renderAll(m displaymodel.Model) {
 				}
 			}
 		case k.NavAll != nil:
-			if err := dc.SetKeyImage(pk, ir.RenderNavAll(*k.NavAll), false); err != nil {
-				log.Error().Err(err).Str("key", pk).Msg("set nav key failed")
+			frames := ir.RenderNavAllFrames(*k.NavAll)
+			delays := []int{150, 150, 150, 150, 150, 150, 150, 150}
+			if err := dc.SetKeyGIFImage(pk, frames, delays, false); err != nil {
+				log.Error().Err(err).Str("key", pk).Msg("set nav all gif failed")
 			}
 		case k.NavMac != nil:
 			if err := dc.SetKeyImage(pk, ir.RenderNavMachine(*k.NavMac), false); err != nil {
