@@ -89,4 +89,5 @@ type Model struct {
 	NavMachine NavMachine
 	NavSpace   NavSpace
 	Stats      Stats
+	Machines   []protocol.MachineInfo // machine list from snapshot
 }

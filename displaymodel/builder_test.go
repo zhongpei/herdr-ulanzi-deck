@@ -194,6 +194,24 @@ func TestNextMachine_InvalidMachineName(t *testing.T) {
 	}
 }
 
+// ─── Model Machines ─────────────────────────────────────────
+
+func TestBuild_IncludesMachines(t *testing.T) {
+	snap := testSnapshot()
+	b := NewBuilder()
+	m := b.Build(snap, LocalStats{}, nil)
+
+	if len(m.Machines) != 2 {
+		t.Fatalf("expected 2 machines, got %d", len(m.Machines))
+	}
+	if m.Machines[0].Name != "local" {
+		t.Errorf("first machine: got %q, want 'local'", m.Machines[0].Name)
+	}
+	if m.Machines[1].Name != "dev-server" {
+		t.Errorf("second machine: got %q, want 'dev-server'", m.Machines[1].Name)
+	}
+}
+
 // ─── NextSpace ──────────────────────────────────────────────
 
 func TestNextSpace_FromAll_SelectsFirst(t *testing.T) {

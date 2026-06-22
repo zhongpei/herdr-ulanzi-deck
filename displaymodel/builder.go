@@ -206,6 +206,7 @@ func (b *Builder) Build(snap *protocol.FleetSnapshot, local LocalStats, duration
 			CPUPercent:    local.CPUPercent,
 			MemoryPercent: local.MemoryPercent,
 		},
+		Machines: snap.Machines,
 	}
 }
 
