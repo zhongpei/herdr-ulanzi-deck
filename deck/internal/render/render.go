@@ -605,7 +605,7 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
 		{"B", d.Stats.Blocked, "#E74C3C"},
 		{"D", d.Stats.Done, "#27AE60"},
 		{"W", d.Stats.Working, "#F39C12"},
-		{"I", d.Stats.Idle, "#7F8C8D"},
+		{"I", d.Stats.Idle, "#B0BEC5"},
 		{"?", d.Stats.Unknown, "#95A5A6"},
 	}
 	for _, item := range statusItems {
@@ -653,7 +653,7 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
 			{"blocked", "B", "#E74C3C"},
 			{"done", "D", "#27AE60"},
 			{"working", "W", "#F39C12"},
-			{"idle", "I", "#7F8C8D"},
+			{"idle", "I", "#B0BEC5"},
 			{"unknown", "?", "#95A5A6"},
 		}
 		for _, bo := range badgeOrder {
