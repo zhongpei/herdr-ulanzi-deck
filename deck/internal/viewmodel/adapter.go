@@ -42,6 +42,12 @@ func Adapt(m displaymodel.Model) []KeyCommand {
 		})
 	}
 
+	// Compute per-machine agent counts for K11 display
+	counts := make(map[string]int)
+	for _, a := range m.Agents {
+		counts[a.ConnName]++
+	}
+
 	// K11: NavAll
 	keys = append(keys, KeyCommand{
 		NavAll: &NavAllData{
@@ -53,6 +59,7 @@ func Adapt(m displaymodel.Model) []KeyCommand {
 			CPUPercent:    m.Stats.CPUPercent,
 			MemoryPercent: m.Stats.MemoryPercent,
 			Machines:      m.Machines,
+			AgentCounts:   counts,
 		},
 	})
 

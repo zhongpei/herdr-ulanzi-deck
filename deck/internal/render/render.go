@@ -261,53 +261,16 @@ func rotatePoint(x, y, cx, cy, angleDeg float64) (float64, float64) {
 	return cx + dx*cos - dy*sin, cy + dx*sin + dy*cos
 }
 
-// ─── ALL button (K11) ──────────────────────────────────────
+// ─── ALL button (K11) with machine color blocks ────────────
 func (r *Renderer) RenderNavAll(d viewmodel.NavAllData) string {
-	var fill string
+	var bg string
 	switch {
 	case !d.Active:
-		fill = "#3a3a3a" // inactive
+		bg = "#3a3a3a"
 	case d.Filtered:
-		fill = "#E67E22" // active + filtered → amber
+		bg = "#E67E22"
 	default:
-		fill = "#4A90D9" // active + unfiltered → blue
-	}
-	label := d.Label
-	if label == "" {
-		label = "ALL"
-	}
-	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" rx="8" fill="%s"/>
-  <text x="100" y="115" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="36" font-weight="900">%s</text>
-  <rect x="155" y="178" width="40" height="18" rx="4" fill="#222" opacity="0.7"/>
-  <text x="175" y="192" text-anchor="middle" fill="#00D084"
-        font-family="sans-serif" font-size="16" font-weight="700">Go</text>
-</svg>`, fill, label)
-	return toDataURI(svg)
-}
-
-// RenderNavAllFrames returns 8 animated SVG frames for K11 machine status.
-func (r *Renderer) RenderNavAllFrames(d viewmodel.NavAllData) []string {
-	frames := make([]string, 8)
-	for i := 0; i < 8; i++ {
-		frames[i] = r.RenderNavAllFrame(d, i, 8)
-	}
-	return frames
-}
-
-// RenderNavAllFrame returns one animation frame of K11 machine status.
-// Online machines get a green breathing dot (sine-wave opacity 0.3↔1.0).
-// Offline machines get a red blinking dot (square-wave 0.1↔1.0).
-func (r *Renderer) RenderNavAllFrame(d viewmodel.NavAllData, frame, totalFrames int) string {
-	var fill string
-	switch {
-	case !d.Active:
-		fill = "#3a3a3a"
-	case d.Filtered:
-		fill = "#E67E22"
-	default:
-		fill = "#4A90D9"
+		bg = "#4A90D9"
 	}
 
 	label := d.Label
@@ -315,51 +278,52 @@ func (r *Renderer) RenderNavAllFrame(d viewmodel.NavAllData, frame, totalFrames 
 		label = "ALL"
 	}
 
-	var body strings.Builder
+	// Build machine color blocks
+	var blocks strings.Builder
 	machines := d.Machines
-
-	if len(machines) == 0 {
-		body.WriteString(`<text x="100" y="55" text-anchor="middle" fill="#888" font-family="sans-serif" font-size="14" font-weight="400">---</text>`)
-	} else {
-		spacing := 60
-		totalW := len(machines) * spacing
-		startX := (200-totalW)/2 + 15
+	if len(machines) > 0 {
+		blockW := 56
+		blockH := 62
+		gap := 8
+		totalW := len(machines)*blockW + (len(machines)-1)*gap
+		startX := (200 - totalW) / 2
 
 		for i, m := range machines {
-			x := startX + i*spacing - 15
-			tx := x + 20
+			x := startX + i*(blockW+gap)
+			y := 18
 
-			opacity := 0.3
-			switch m.Health {
-			case "online":
-				phase := float64(frame) * 2.0 * math.Pi / float64(totalFrames)
-				opacity = 0.3 + 0.7*(math.Sin(phase)+1.0)/2.0
-			case "offline":
-				if frame < totalFrames/2 {
-					opacity = 1.0
-				} else {
-					opacity = 0.1
-				}
+			machineColor := m.Color
+			if machineColor == "" {
+				machineColor = "#6B7280"
 			}
 
-			dotColor := "#4ADE80"
+			abbrColor := "white"
 			if m.Health == "offline" {
-				dotColor = "#EF4444"
+				abbrColor = "#EF4444"
 			}
 
-			body.WriteString(fmt.Sprintf(
-				`<circle cx="%d" cy="55" r="5" fill="%s" opacity="%.2f"/>
-<text x="%d" y="60" fill="white" font-family="sans-serif" font-size="14" font-weight="700">%s</text>
-`, x, dotColor, opacity, tx, escapeXML(m.Abbr)))
+			count := 0
+			if d.AgentCounts != nil {
+				count = d.AgentCounts[m.Name]
+			}
+
+			blocks.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="%d" height="%d" rx="6" fill="%s"/>
+  <text x="%d" y="%d" text-anchor="middle" fill="%s" font-family="sans-serif" font-size="12" font-weight="700">%s</text>
+  <text x="%d" y="%d" text-anchor="middle" fill="white" font-family="sans-serif" font-size="24" font-weight="900">%d</text>
+`, x, y, blockW, blockH, machineColor,
+				x+blockW/2, y+22, abbrColor, escapeXML(m.Abbr),
+				x+blockW/2, y+50, count))
 		}
+	} else {
+		blocks.WriteString(`  <text x="100" y="60" text-anchor="middle" fill="#888" font-family="sans-serif" font-size="14" font-weight="400">---</text>`)
 	}
 
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <rect width="200" height="200" rx="8" fill="%[1]s"/>
-  %[2]s
-  <text x="100" y="140" text-anchor="middle" fill="white"
-        font-family="sans-serif" font-size="36" font-weight="900">%[3]s</text>
-</svg>`, fill, body.String(), label)
+  <rect width="200" height="200" rx="8" fill="%s"/>
+%s
+  <text x="100" y="160" text-anchor="middle" fill="white"
+        font-family="sans-serif" font-size="36" font-weight="900">%s</text>
+</svg>`, bg, blocks.String(), label)
 
 	return toDataURI(svg)
 }
