@@ -589,14 +589,14 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
 		memCol = "#555"
 	}
 
-	inner.WriteString(fmt.Sprintf(`  <text x="15" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="700">CPU</text>
-  <text x="55" y="28" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
-  <text x="110" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="700">MEM</text>
-  <text x="150" y="28" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
+	inner.WriteString(fmt.Sprintf(`  <text x="20" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="700">CPU</text>
+  <text x="65" y="28" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
+  <text x="125" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="700">MEM</text>
+  <text x="170" y="28" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
 `, cpuCol, cpuPct, memCol, memPct))
 
 	// Status summary
-	xPos := 215
+	xPos := 235
 	statusItems := []struct {
 		label string
 		count int
@@ -615,7 +615,7 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
 		inner.WriteString(fmt.Sprintf(`  <text x="%d" y="28" fill="%s" font-family="sans-serif" font-size="16" font-weight="900">%s</text>
   <text x="%d" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
 `, xPos, item.color, item.label, xPos+16, item.count))
-		xPos += 42
+		xPos += 38
 	}
 
 	inner.WriteString(`  <line x1="0" y1="36" x2="400" y2="36" stroke="#444" stroke-width="1"/>
@@ -638,13 +638,13 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
 		}
 
 		// Colored square + abbreviation + total
-		inner.WriteString(fmt.Sprintf(`  <rect x="15" y="%d" width="6" height="20" rx="2" fill="%s"/>
+		inner.WriteString(fmt.Sprintf(`  <rect x="15" y="%d" width="8" height="26" rx="2" fill="%s"/>
   <text x="28" y="%d" fill="%s" font-family="sans-serif" font-size="18" font-weight="700">%s</text>
   <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
-`, machineY, macColor, machineY+16, macColor, mac.Abbr, 28+len(mac.Abbr)*10+5, machineY+16, mac.Total))
+`, machineY, macColor, machineY+22, "white", mac.Abbr, 28+len(mac.Abbr)*10+5, machineY+16, mac.Total))
 
 		// Status badges
-		bX := 140
+		bX := 160
 		badgeOrder := []struct {
 			key   string
 			label string
@@ -661,13 +661,13 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
 			if cnt == 0 {
 				continue
 			}
-			inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="16" font-weight="900">%s</text>
-  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="16" font-weight="400">%d</text>
+			inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="20" font-weight="400">%d</text>
 `, bX, machineY+16, bo.color, bo.label, bX+18, machineY+16, cnt))
-			bX += 42
+			bX += 44
 		}
 
-		machineY += 30
+		machineY += 38
 	}
 
 	// ── Page indicator ──
