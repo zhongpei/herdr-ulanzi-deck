@@ -561,7 +561,51 @@ func (r *Renderer) RenderStatsKey(d viewmodel.StatsData) string {
 func (r *Renderer) RenderStatsCarouselFrames(d viewmodel.StatsData) []string {
 	spaces := d.Spaces
 	if len(spaces) == 0 {
-		return []string{r.RenderStatsKey(d)}
+		// Blue background frame with top bar + "---" for empty spaces
+		var inner strings.Builder
+		cpuPct := formatPct(d.CPUPercent)
+		cpuCol := cpuColor(d.CPUPercent)
+		if d.CPUPercent <= 0.01 {
+			cpuPct = "--"
+			cpuCol = "#555"
+		}
+		memPct := formatPct(d.MemoryPercent)
+		memCol := memColor(d.MemoryPercent)
+		if d.MemoryPercent <= 0.01 {
+			memPct = "--"
+			memCol = "#555"
+		}
+		inner.WriteString(fmt.Sprintf(`  <text x="20" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="700">CPU</text>
+  <text x="65" y="28" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
+  <text x="125" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="700">MEM</text>
+  <text x="170" y="28" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
+`, cpuCol, cpuPct, memCol, memPct))
+		xPos := 235
+		type si struct{ label string; count int; color string }
+		statusItems := []si{
+			{"B", d.Stats.Blocked, "#E74C3C"},
+			{"D", d.Stats.Done, "#27AE60"},
+			{"W", d.Stats.Working, "#F39C12"},
+			{"I", d.Stats.Idle, "#B0BEC5"},
+			{"?", d.Stats.Unknown, "#95A5A6"},
+		}
+		for _, item := range statusItems {
+			if item.count == 0 {
+				continue
+			}
+			inner.WriteString(fmt.Sprintf(`  <text x="%d" y="28" fill="%s" font-family="sans-serif" font-size="16" font-weight="900">%s</text>
+  <text x="%d" y="28" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
+`, xPos, item.color, item.label, xPos+16, item.count))
+			xPos += 38
+		}
+		inner.WriteString(`  <line x1="0" y1="36" x2="400" y2="36" stroke="#444" stroke-width="1"/>
+  <text x="200" y="100" text-anchor="middle" fill="white" font-family="sans-serif" font-size="36" font-weight="700">---</text>
+`)
+		svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+  <rect width="400" height="200" rx="8" fill="#4A90D9"/>
+%s
+</svg>`, inner.String())
+		return []string{toDataURI(svg)}
 	}
 	frames := make([]string, len(spaces))
 	for i, sp := range spaces {
@@ -629,22 +673,38 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
 	inner.WriteString(fmt.Sprintf(`  <text x="200" y="72" text-anchor="middle" fill="white" font-family="sans-serif" font-size="36" font-weight="700">%s</text>
 `, escapeXML(label)))
 
-	// ── Machine entries ──
-	machineY := 90
-	for _, mac := range sp.Machines {
+	// ── Machine entries in two columns ──
+	type colDef struct{ x, w int }
+	cols := []colDef{{x: 20, w: 185}, {x: 205, w: 185}}
+	rowH := 52
+	startY := 88
+	machines := sp.Machines
+	maxDisplay := 4
+	if len(machines) > maxDisplay {
+		machines = machines[:maxDisplay]
+	}
+
+	for i, mac := range machines {
+		col := cols[i%2]
+		row := i / 2
+		mx := col.x
+		my := startY + row*rowH
+
 		macColor := mac.Color
 		if macColor == "" {
 			macColor = "#6B7280"
 		}
 
-		// Colored square + abbreviation + total
-		inner.WriteString(fmt.Sprintf(`  <rect x="15" y="%d" width="8" height="26" rx="2" fill="%s"/>
-  <text x="28" y="%d" fill="%s" font-family="sans-serif" font-size="18" font-weight="700">%s</text>
-  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="18" font-weight="900">%d</text>
-`, machineY, macColor, machineY+22, "white", mac.Abbr, 28+len(mac.Abbr)*10+5, machineY+16, mac.Total))
+		// Colored rect + abbreviation (28px bold) + total count (24px)
+		inner.WriteString(fmt.Sprintf(`  <rect x="%d" y="%d" width="10" height="30" rx="3" fill="%s"/>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="28" font-weight="700">%s</text>
+  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="24" font-weight="900">%d</text>
+`, mx, my+2, macColor,
+			mx+16, my+24, mac.Abbr,
+			mx+16+len(mac.Abbr)*17+4, my+24, mac.Total))
 
-		// Status badges
-		bX := 160
+		// Status badges (22px, compact)
+		bX := mx + 16
 		badgeOrder := []struct {
 			key   string
 			label string
@@ -661,19 +721,17 @@ func (r *Renderer) RenderStatsCarouselFrame(d viewmodel.StatsData, sp viewmodel.
 			if cnt == 0 {
 				continue
 			}
-			inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="20" font-weight="900">%s</text>
-  <text x="%d" y="%d" fill="white" font-family="sans-serif" font-size="20" font-weight="400">%d</text>
-`, bX, machineY+16, bo.color, bo.label, bX+18, machineY+16, cnt))
-			bX += 44
+			badgeStr := fmt.Sprintf("%s %d", bo.label, cnt)
+			inner.WriteString(fmt.Sprintf(`  <text x="%d" y="%d" fill="%s" font-family="sans-serif" font-size="22" font-weight="900">%s</text>
+`, bX, my+52, bo.color, badgeStr))
+			bX += len(badgeStr) * 14 + 8
 		}
-
-		machineY += 38
 	}
 
 	// ── Page indicator ──
 	pageText := fmt.Sprintf("%d / %d", idx+1, total)
-	inner.WriteString(fmt.Sprintf(`  <rect x="170" y="185" width="60" height="12" rx="6" fill="#222"/>
-  <text x="200" y="194" text-anchor="middle" fill="#888" font-family="sans-serif" font-size="10" font-weight="400">%s</text>
+	inner.WriteString(fmt.Sprintf(`  <rect x="170" y="192" width="60" height="6" rx="3" fill="#333" opacity="0.5"/>
+  <text x="200" y="198" text-anchor="middle" fill="#AAA" font-family="sans-serif" font-size="9" font-weight="400">%s</text>
 `, pageText))
 
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">

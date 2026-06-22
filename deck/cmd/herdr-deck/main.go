@@ -364,13 +364,12 @@ func renderAll(m displaymodel.Model) {
 				if err := dc.SetKeyGIFImage(pk, frames, delays, true); err != nil {
 					log.Error().Err(err).Str("key", pk).Msg("set stats carousel failed")
 				}
-			} else if len(frames) == 1 {
-				// Single space: send as SVG direct (blue background)
+			} else {
+				// Single or zero spaces: send single frame via SVG direct (blue bg)
 				if err := dc.SetKeySVGDirect(pk, frames[0], true); err != nil {
 					log.Error().Err(err).Str("key", pk).Msg("set stats svg failed")
 				}
 			}
-			// No spaces → nothing to send
 		default:
 			if err := dc.SetKeyImage(pk, ir.RenderEmptyKey(), false); err != nil {
 				log.Error().Err(err).Str("key", pk).Msg("set empty key failed")
