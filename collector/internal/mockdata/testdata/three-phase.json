@@ -1,0 +1,390 @@
+[
+  {
+    "name": "phase-1-all-active",
+    "connections": [
+      {
+        "name": "local",
+        "abbr": "LCL",
+        "color": "#4ADE80",
+        "workspaces": [
+          {
+            "id": "ws-1",
+            "label": "frontend",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p1",
+                "tab_id": "t1",
+                "agent": "pi",
+                "name": "coder",
+                "status": "working",
+                "focused": true,
+                "tab_label": "main"
+              },
+              {
+                "pane_id": "p2",
+                "tab_id": "t1",
+                "agent": "claude",
+                "name": "reviewer",
+                "status": "idle",
+                "focused": false,
+                "tab_label": "main"
+              }
+            ]
+          },
+          {
+            "id": "ws-2",
+            "label": "backend",
+            "number": 2,
+            "agents": [
+              {
+                "pane_id": "p3",
+                "tab_id": "t2",
+                "agent": "devin",
+                "name": "deployer",
+                "status": "working",
+                "focused": false,
+                "tab_label": "api"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "remote-server",
+        "abbr": "RMT",
+        "color": "#F59E0B",
+        "workspaces": [
+          {
+            "id": "ws-3",
+            "label": "production",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p4",
+                "tab_id": "t3",
+                "agent": "pi",
+                "name": "watchdog",
+                "status": "working",
+                "focused": true,
+                "tab_label": "prod"
+              },
+              {
+                "pane_id": "p5",
+                "tab_id": "t4",
+                "agent": "claude",
+                "name": "monitor",
+                "status": "unknown",
+                "focused": false,
+                "tab_label": "metrics"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "dev-vm",
+        "abbr": "DEV",
+        "color": "#60A5FA",
+        "workspaces": [
+          {
+            "id": "ws-4",
+            "label": "experiments",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p6",
+                "tab_id": "t5",
+                "agent": "pi",
+                "name": "tester",
+                "status": "working",
+                "focused": true,
+                "tab_label": "sandbox"
+              }
+            ]
+          },
+          {
+            "id": "ws-5",
+            "label": "preview",
+            "number": 2,
+            "agents": [
+              {
+                "pane_id": "p7",
+                "tab_id": "t6",
+                "agent": "claude",
+                "name": "feature",
+                "status": "blocked",
+                "focused": false,
+                "tab_label": "preview"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "phase-2-transitions",
+    "connections": [
+      {
+        "name": "local",
+        "abbr": "LCL",
+        "color": "#4ADE80",
+        "workspaces": [
+          {
+            "id": "ws-1",
+            "label": "frontend",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p1",
+                "tab_id": "t1",
+                "agent": "pi",
+                "name": "coder",
+                "status": "done",
+                "focused": false,
+                "tab_label": "main"
+              },
+              {
+                "pane_id": "p2",
+                "tab_id": "t1",
+                "agent": "claude",
+                "name": "reviewer",
+                "status": "blocked",
+                "focused": false,
+                "tab_label": "main"
+              }
+            ]
+          },
+          {
+            "id": "ws-2",
+            "label": "backend",
+            "number": 2,
+            "agents": [
+              {
+                "pane_id": "p3",
+                "tab_id": "t2",
+                "agent": "devin",
+                "name": "deployer",
+                "status": "working",
+                "focused": true,
+                "tab_label": "api"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "remote-server",
+        "abbr": "RMT",
+        "color": "#F59E0B",
+        "workspaces": [
+          {
+            "id": "ws-3",
+            "label": "production",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p4",
+                "tab_id": "t3",
+                "agent": "pi",
+                "name": "watchdog",
+                "status": "working",
+                "focused": true,
+                "tab_label": "prod"
+              },
+              {
+                "pane_id": "p5",
+                "tab_id": "t4",
+                "agent": "claude",
+                "name": "monitor",
+                "status": "done",
+                "focused": false,
+                "tab_label": "metrics"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "dev-vm",
+        "abbr": "DEV",
+        "color": "#60A5FA",
+        "workspaces": [
+          {
+            "id": "ws-4",
+            "label": "experiments",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p6",
+                "tab_id": "t5",
+                "agent": "pi",
+                "name": "tester",
+                "status": "idle",
+                "focused": false,
+                "tab_label": "sandbox"
+              }
+            ]
+          },
+          {
+            "id": "ws-5",
+            "label": "preview",
+            "number": 2,
+            "agents": [
+              {
+                "pane_id": "p7",
+                "tab_id": "t6",
+                "agent": "claude",
+                "name": "feature",
+                "status": "blocked",
+                "focused": false,
+                "tab_label": "preview"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "phase-3-new-work",
+    "connections": [
+      {
+        "name": "local",
+        "abbr": "LCL",
+        "color": "#4ADE80",
+        "workspaces": [
+          {
+            "id": "ws-1",
+            "label": "frontend",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p1",
+                "tab_id": "t1",
+                "agent": "pi",
+                "name": "coder",
+                "status": "working",
+                "focused": true,
+                "tab_label": "main"
+              },
+              {
+                "pane_id": "p2",
+                "tab_id": "t1",
+                "agent": "claude",
+                "name": "reviewer",
+                "status": "idle",
+                "focused": false,
+                "tab_label": "main"
+              },
+              {
+                "pane_id": "p8",
+                "tab_id": "t1",
+                "agent": "devin",
+                "name": "helper",
+                "status": "working",
+                "focused": false,
+                "tab_label": "main"
+              }
+            ]
+          },
+          {
+            "id": "ws-2",
+            "label": "backend",
+            "number": 2,
+            "agents": [
+              {
+                "pane_id": "p3",
+                "tab_id": "t2",
+                "agent": "devin",
+                "name": "deployer",
+                "status": "done",
+                "focused": false,
+                "tab_label": "api"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "remote-server",
+        "abbr": "RMT",
+        "color": "#F59E0B",
+        "workspaces": [
+          {
+            "id": "ws-3",
+            "label": "production",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p4",
+                "tab_id": "t3",
+                "agent": "pi",
+                "name": "watchdog",
+                "status": "idle",
+                "focused": false,
+                "tab_label": "prod"
+              }
+            ]
+          },
+          {
+            "id": "ws-6",
+            "label": "staging",
+            "number": 2,
+            "agents": [
+              {
+                "pane_id": "p9",
+                "tab_id": "t7",
+                "agent": "claude",
+                "name": "stager",
+                "status": "working",
+                "focused": true,
+                "tab_label": "stage"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "dev-vm",
+        "abbr": "DEV",
+        "color": "#60A5FA",
+        "workspaces": [
+          {
+            "id": "ws-4",
+            "label": "experiments",
+            "number": 1,
+            "agents": [
+              {
+                "pane_id": "p6",
+                "tab_id": "t5",
+                "agent": "pi",
+                "name": "tester",
+                "status": "done",
+                "focused": false,
+                "tab_label": "sandbox"
+              }
+            ]
+          },
+          {
+            "id": "ws-5",
+            "label": "preview",
+            "number": 2,
+            "agents": [
+              {
+                "pane_id": "p7",
+                "tab_id": "t6",
+                "agent": "claude",
+                "name": "feature",
+                "status": "working",
+                "focused": true,
+                "tab_label": "preview"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

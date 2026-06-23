@@ -16,14 +16,19 @@ import (
 	"github.com/herdr-deck/herdrdeck/collector/internal/natsserver"
 	"github.com/herdr-deck/herdrdeck/collector/internal/publisher"
 	"github.com/herdr-deck/herdrdeck/collector/internal/tunnel"
+	"github.com/herdr-deck/herdrdeck/collector/internal/mockdata"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
+// fetcher is satisfied by both *bridge.Bridge and *mockdata.Source.
+type fetcher interface {
+	FetchAll() []bridge.FetchResult
+}
 
 var (
 	store   *fleet.Store
-	br      *bridge.Bridge
+	br      fetcher
 	pub     *publisher.Publisher
 	natsSrv *natsserver.Server
 	tunnels []*tunnel.Tunnel
@@ -45,6 +50,8 @@ an embedded NATS server for display processes (herdr-deck, herdr-pet).`,
 
 	rootCmd.Flags().IntP("nats-port", "n", 4222, "NATS server listen port")
 	rootCmd.Flags().BoolP("debug", "d", false, "enable debug logging")
+
+	rootCmd.Flags().StringP("mock-data", "m", "", "Path to mock data JSON file (test mode)")
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal().Err(err).Msg("collector startup failed")
@@ -79,57 +86,71 @@ func runMain(cmd *cobra.Command, args []string) error {
 	defer pub.Close()
 	log.Info().Msg("NATS publisher connected")
 
-	// ── Load herdr config ────────────────────────────────────
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Warn().Err(err).Msg("config load issue, using defaults")
-	}
-
-	// ── Connect to herdr instances ───────────────────────────
-	br = bridge.NewBridge()
-	defer func() {
-		for _, tun := range tunnels {
-			tun.Close()
+	// ── Data source: mock or real herdr ────────────────────────
+	mockPath, _ := cmd.Flags().GetString("mock-data")
+	if mockPath != "" {
+		mockSrc, err := mockdata.Load(mockPath, 5*time.Second)
+		if err != nil {
+			return fmt.Errorf("mock data: %w", err)
 		}
-	}()
+		br = mockSrc
+		log.Info().Str("path", mockPath).
+			Int("phases", mockSrc.PhaseCount()).
+			Msg("using mock data source (skipping herdr connections)")
+	} else {
+		// ── Load herdr config ──────────────────────────────────
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			log.Warn().Err(err).Msg("config load issue, using defaults")
+		}
 
-	for _, c := range cfg.Connections {
-		switch c.Type {
-		case "local":
-			sock := config.FindLocalSocket()
-			if sock == "" {
-				log.Warn().Str("name", c.Name).Msg("no socket found for connection")
-				continue
-			}
-			br.AddConnection(c.Name, c.Abbr, c.Color, herdrclient.New(sock))
-			log.Debug().Str("name", c.Name).Str("socket", sock).Msg("added herdr connection")
-
-		case "ssh":
-			if c.Host == "" || c.RemoteSocket == "" {
-				log.Warn().Str("name", c.Name).Msg("ssh connection missing host or remoteSocket")
-				continue
-			}
-			tp := c.LocalPort
-			if tp == 0 {
-				tp = 19999
-			}
-			tun := tunnel.NewTunnel(c.Host, c.RemoteSocket, tp)
-			tun.SSHPort = c.SSHPort
-			if err := tun.Start(); err != nil {
-				log.Error().Err(err).Str("name", c.Name).Msg("SSH tunnel start failed")
-				continue
-			}
-			tunnels = append(tunnels, tun)
-			if err := tun.WaitReady(10 * time.Second); err != nil {
-				log.Error().Err(err).Str("name", c.Name).Msg("SSH tunnel not ready")
+		// ── Connect to herdr instances ───────────────────────────
+		localBridge := bridge.NewBridge()
+		br = localBridge
+		defer func() {
+			for _, tun := range tunnels {
 				tun.Close()
-				continue
 			}
-			br.AddConnection(c.Name, c.Abbr, c.Color, herdrclient.New(tun.TargetAddr))
-			log.Info().Str("name", c.Name).Str("addr", tun.TargetAddr).Msg("added SSH herdr connection")
+		}()
 
-		default:
-			log.Warn().Str("name", c.Name).Str("type", c.Type).Msg("unknown connection type, skipped")
+		for _, c := range cfg.Connections {
+			switch c.Type {
+			case "local":
+				sock := config.FindLocalSocket()
+				if sock == "" {
+					log.Warn().Str("name", c.Name).Msg("no socket found for connection")
+					continue
+				}
+				localBridge.AddConnection(c.Name, c.Abbr, c.Color, herdrclient.New(sock))
+				log.Debug().Str("name", c.Name).Str("socket", sock).Msg("added herdr connection")
+
+			case "ssh":
+				if c.Host == "" || c.RemoteSocket == "" {
+					log.Warn().Str("name", c.Name).Msg("ssh connection missing host or remoteSocket")
+					continue
+				}
+				tp := c.LocalPort
+				if tp == 0 {
+					tp = 19999
+				}
+				tun := tunnel.NewTunnel(c.Host, c.RemoteSocket, tp)
+				tun.SSHPort = c.SSHPort
+				if err := tun.Start(); err != nil {
+					log.Error().Err(err).Str("name", c.Name).Msg("SSH tunnel start failed")
+					continue
+				}
+				tunnels = append(tunnels, tun)
+				if err := tun.WaitReady(10 * time.Second); err != nil {
+					log.Error().Err(err).Str("name", c.Name).Msg("SSH tunnel not ready")
+					tun.Close()
+					continue
+				}
+				localBridge.AddConnection(c.Name, c.Abbr, c.Color, herdrclient.New(tun.TargetAddr))
+				log.Info().Str("name", c.Name).Str("addr", tun.TargetAddr).Msg("added SSH herdr connection")
+
+			default:
+				log.Warn().Str("name", c.Name).Str("type", c.Type).Msg("unknown connection type, skipped")
+			}
 		}
 	}
 
