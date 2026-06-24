@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"gioui.org/app"
@@ -33,8 +34,8 @@ type App struct {
 	tray        *tray.Tray
 	trayView    uintptr
 	debug       bool
-	lastHB      time.Time
-	offline     bool
+	lastHB      atomic.Value // stores time.Time
+	offline     atomic.Bool
 	lastSnap    *displaymodel.Model
 	statusSince map[string]time.Time
 	input       *InputState
@@ -45,7 +46,7 @@ type App struct {
 }
 
 func New(st *store.Store, bld *displaymodel.Builder, sub *subscriber.Subscriber, rule *alert.Rule, cmdPub *command.Publisher, debug bool) *App {
-	return &App{
+	a := &App{
 		store:       st,
 		builder:     bld,
 		sub:         sub,
@@ -53,10 +54,12 @@ func New(st *store.Store, bld *displaymodel.Builder, sub *subscriber.Subscriber,
 		cmdPub:      cmdPub,
 		tray:        tray.New(st),
 		debug:       debug,
-		lastHB:      time.Now(),
 		statusSince: make(map[string]time.Time),
 		input:       NewInputState(),
 	}
+	a.lastHB.Store(time.Now())
+	a.offline.Store(false)
+	return a
 }
 
 func (a *App) Run() error {
@@ -153,7 +156,7 @@ func (a *App) gioLoop() {
 			actions = append(actions, HandleKeys(gtx, a.input, a.store, a.builder)...)
 			a.handleActions(actions)
 
-			LayoutBoard(gtx, m, snap, now, a.offline, phase, a.input, a.store.HiddenMachines())
+			LayoutBoard(gtx, m, snap, now, a.offline.Load(), phase, a.input, a.store.HiddenMachines())
 
 			if a.alertRule != nil && a.lastSnap != nil {
 				a.checkAlert(a.lastSnap.Agents, m.Agents, win)
@@ -169,8 +172,9 @@ func (a *App) scheduleSave() {
 	if a.saveTimer != nil {
 		a.saveTimer.Stop()
 	}
+	w, h := a.curW, a.curH
 	a.saveTimer = time.AfterFunc(resizeDebounce, func() {
-		config.Save(float32(a.curW), float32(a.curH))
+		config.Save(float32(w), float32(h))
 	})
 }
 
@@ -252,10 +256,10 @@ func (a *App) natsPump() {
 		select {
 		case snap := <-a.sub.SnapshotCh():
 			a.store.ApplySnapshot(snap)
-			a.lastHB = time.Now()
-			a.offline = false
+			a.lastHB.Store(time.Now())
+			a.offline.Store(false)
 		case <-a.sub.HeartbeatCh():
-			a.lastHB = time.Now()
+			a.lastHB.Store(time.Now())
 			a.store.MarkHeartbeat()
 		}
 	}
@@ -273,8 +277,9 @@ func (a *App) healthCheckPump(w *app.Window) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		if time.Since(a.lastHB) > healthTimeout && !a.offline {
-			a.offline = true
+		lastHB := a.lastHB.Load().(time.Time)
+		if time.Since(lastHB) > healthTimeout && !a.offline.Load() {
+			a.offline.Store(true)
 			a.store.MarkOffline()
 			w.Invalidate()
 			log.Warn().Msg("collector offline")

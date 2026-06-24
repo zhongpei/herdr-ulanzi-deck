@@ -11,9 +11,12 @@ import (
 
 	"github.com/herdr-deck/herdrdeck/protocol"
 )
-
 // Manager holds the fleet state, duration tracking, health, and system stats.
 // Filtering and navigation semantics are handled by displaymodel.Builder.
+//
+// SINGLE-GOROUTINE: Manager is only accessed from the main event-loop
+// goroutine (deck's runMain select loop). Do not call methods concurrently
+// without adding a mutex.
 type Manager struct {
 	machines      []protocol.MachineInfo
 	agents        []protocol.AgentState

@@ -6,6 +6,7 @@ package controller
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/herdr-deck/herdrdeck/deck/internal/fleet"
 	"github.com/herdr-deck/herdrdeck/displaymodel"
@@ -24,9 +25,9 @@ func (s *CaptureState) Hash() string { return s.hash }
 
 // ChangedSince returns true if this state differs from a previous hash.
 func (s *CaptureState) ChangedSince(prevHash string) bool { return s.hash != prevHash }
-
 // Controller manages the deck's render cycle.
 type Controller struct {
+	mu           sync.Mutex
 	fleet        *fleet.Manager
 	displayBld   *displaymodel.Builder
 	dirty        bool
@@ -47,80 +48,93 @@ func NewController(fm *fleet.Manager, bld *displaymodel.Builder, k11Enabled bool
 
 // ApplySnapshot caches the latest snapshot for use by displaymodel builder.
 func (c *Controller) ApplySnapshot(snap *protocol.FleetSnapshot) {
+	c.mu.Lock()
 	c.lastSnapshot = snap
+	c.mu.Unlock()
 }
 
 // OnK11 handles the K11 (ALL/ACT) key press.
 // Preserves current behavior: always resets to ALL mode first, then toggles
 // the ActiveOnly filter when K11Toggle is enabled.
 func (c *Controller) OnK11() {
+	c.mu.Lock()
 	c.displayBld.SetAll()
 	if c.k11Enabled {
 		c.displayBld.ToggleActiveOnly()
 	}
-	c.MarkDirty()
+	c.dirty = true
+	c.mu.Unlock()
 }
 
 // OnK12 handles the K12 (machine cycle) key press.
 func (c *Controller) OnK12() {
+	c.mu.Lock()
 	if snap := c.lastSnapshot; snap != nil {
 		c.displayBld.NextMachine(snap)
 	}
-	c.MarkDirty()
+	c.dirty = true
+	c.mu.Unlock()
 }
-
 // OnK13 handles the K13 (space cycle) key press.
 func (c *Controller) OnK13() {
+	c.mu.Lock()
 	if snap := c.lastSnapshot; snap != nil {
 		c.displayBld.NextSpace(snap)
 	}
-	c.MarkDirty()
+	c.dirty = true
+	c.mu.Unlock()
 }
 
 // LastModel returns the most recently built display model, or nil.
 func (c *Controller) LastModel() *displaymodel.Model {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.lastModel
 }
 
 // MarkDirty flags the controller for the next render cycle.
 func (c *Controller) MarkDirty() {
+	c.mu.Lock()
 	c.dirty = true
+	c.mu.Unlock()
 }
 
 // IsDirty returns whether a render is pending.
 func (c *Controller) IsDirty() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.dirty
 }
 
 // MarkClean resets the dirty flag after a render cycle.
 func (c *Controller) MarkClean() {
+	c.mu.Lock()
 	c.dirty = false
+	c.mu.Unlock()
 }
 
 // Capture reads the current fleet/viewmodel state and returns a CaptureState
 // with the built display model and its hash fingerprint.
 func (c *Controller) Capture() *CaptureState {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.lastSnapshot == nil {
-		// Before first snapshot, return empty model
 		model := c.displayBld.Build(&protocol.FleetSnapshot{}, displaymodel.LocalStats{}, nil)
 		return &CaptureState{Model: model, hash: ""}
 	}
 
-	// Gather durations from fleet manager
 	durations := make(map[string]string, len(c.lastSnapshot.Agents))
 	for _, a := range c.lastSnapshot.Agents {
 		durations[a.ID] = c.fleet.FormatAgentDuration(a.Machine, a.PaneID)
 	}
 
-	// Gather local stats
 	cpu, mem := c.fleet.GetSysStats()
 	local := displaymodel.LocalStats{CPUPercent: cpu, MemoryPercent: mem}
 
-	// Build display model
 	model := c.displayBld.Build(c.lastSnapshot, local, durations)
 	c.lastModel = &model
 
-	// Compute hash fingerprint
 	hash := visualHash(model)
 	return &CaptureState{Model: model, hash: hash}
 }

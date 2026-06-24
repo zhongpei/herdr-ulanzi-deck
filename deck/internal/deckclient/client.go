@@ -317,6 +317,11 @@ func (c *Client) SetKeySVGDirect(key, svgDataURI string, wide bool) error {
 	if actionID == "" {
 		return nil
 	}
+
+	// Invalidate latestByKey so a subsequent SetKeyImage for this key
+	// doesn't skip due to a stale hash match.
+	c.imageCache.ClearByKey(key)
+
 	return c.sendKeyImageDataURI(key, actionID, svgDataURI)
 }
 
@@ -386,6 +391,10 @@ func (c *Client) SetKeyGIFImage(key string, svgDataURIs []string, delaysMs []int
 	if actionID == "" {
 		return nil
 	}
+
+	// Invalidate latestByKey so a subsequent SetKeyImage for this key
+	// doesn't skip due to a stale hash match.
+	c.imageCache.ClearByKey(key)
 
 	return c.sendGifDataURI(key, actionID, gifB64)
 }

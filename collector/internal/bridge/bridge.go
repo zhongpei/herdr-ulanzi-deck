@@ -57,6 +57,10 @@ type FetchResult struct {
 }
 
 // Bridge manages a pool of herdr connections.
+//
+// SINGLE-GOROUTINE: AddConnection is called during collector setup,
+// then FetchAll is called from the event loop. Do not call AddConnection
+// concurrently with FetchAll without adding a mutex.
 type Bridge struct {
 	connections []ConnRef
 }
